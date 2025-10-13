@@ -5,16 +5,7 @@ import type { RouteRecordRaw } from 'vue-router'
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/dashboard'
-  },
-  {
-    path: '/dashboard',
-    name: 'Dashboard',
-    component: () => import('@/views/Dashboard.vue'),
-    meta: {
-      title: '数据看板',
-      icon: 'DataBoard'
-    }
+    redirect: '/accounts'
   },
   {
     path: '/accounts',
@@ -26,21 +17,12 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/videos',
-    name: 'Videos',
+    path: '/accounts/:accountId/videos',
+    name: 'AccountVideos',
     component: () => import('@/views/Videos.vue'),
     meta: {
-      title: '视频管理',
+      title: '视频数据分析',
       icon: 'VideoPlay'
-    }
-  },
-  {
-    path: '/analytics',
-    name: 'Analytics',
-    component: () => import('@/views/Analytics.vue'),
-    meta: {
-      title: '数据分析',
-      icon: 'TrendCharts'
     }
   },
   {

@@ -495,10 +495,7 @@ const refreshAccounts = () => {
 
 // 查看视频
 const viewVideos = (account: CreatorAccount) => {
-  router.push({
-    path: '/videos',
-    query: { accountId: account.id }
-  })
+  router.push(`/accounts/${account.id}/videos`)
 }
 
 // 编辑账号

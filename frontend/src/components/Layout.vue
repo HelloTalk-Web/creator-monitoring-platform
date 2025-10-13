@@ -16,21 +16,9 @@
           router
           class="header-menu"
         >
-          <el-menu-item index="/dashboard">
-            <el-icon><DataBoard /></el-icon>
-            <span>数据看板</span>
-          </el-menu-item>
           <el-menu-item index="/accounts">
             <el-icon><User /></el-icon>
             <span>创作者账号</span>
-          </el-menu-item>
-          <el-menu-item index="/videos">
-            <el-icon><VideoPlay /></el-icon>
-            <span>视频管理</span>
-          </el-menu-item>
-          <el-menu-item index="/analytics">
-            <el-icon><TrendCharts /></el-icon>
-            <span>数据分析</span>
           </el-menu-item>
         </el-menu>
       </div>
