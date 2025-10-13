@@ -189,24 +189,16 @@
         <el-form-item label="主页链接" prop="profileUrl">
           <el-input
             v-model="addForm.profileUrl"
-            placeholder="请输入创作者个人主页链接"
+            placeholder="输入创作者个人主页链接（支持 TikTok, Instagram, YouTube, Facebook 等）"
             clearable
           >
             <template #prepend>
-              <el-select
-                v-model="addForm.platformType"
-                placeholder="平台"
-                style="width: 120px"
-              >
-                <el-option label="TikTok" value="tiktok" />
-                <el-option label="Instagram" value="instagram" />
-                <el-option label="YouTube" value="youtube" />
-                <el-option label="Facebook" value="facebook" />
-                <el-option label="小红书" value="xiaohongshu" />
-                <el-option label="抖音" value="douyin" />
-              </el-select>
+              <el-icon><Link /></el-icon>
             </template>
           </el-input>
+          <div style="margin-top: 8px; font-size: 13px; color: var(--el-text-color-secondary);">
+            系统将自动识别平台类型
+          </div>
         </el-form-item>
         <el-form-item label="备注名称" prop="displayName">
           <el-input

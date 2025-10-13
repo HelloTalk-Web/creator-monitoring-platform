@@ -14,6 +14,7 @@
           :default-active="$route.path"
           mode="horizontal"
           router
+          :ellipsis="false"
           class="header-menu"
         >
           <el-menu-item index="/accounts">
