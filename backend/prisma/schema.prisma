@@ -1,0 +1,201 @@
+// Creator Monitoring Platform Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户表
+model User {
+  id                Int      @id @default(autoincrement())
+  email             String   @unique
+  username          String
+  passwordHash      String   @map("password_hash")
+  avatarUrl         String?  @map("avatar_url")
+  planType          String   @default("free") @map("plan_type")
+  apiQuota          Int      @default(1000) @map("api_quota")
+  apiUsed           Int      @default(0) @map("api_used")
+  status            String   @default("active")
+  preferences       Json?    @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // 关系
+  creatorAccounts   CreatorAccount[]
+  scrapeTasks       ScrapeTask[]
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+// 平台表
+model Platform {
+  id                Int      @id @default(autoincrement())
+  name              String   @unique
+  displayName       String   @map("display_name")
+  baseUrl           String   @map("base_url")
+  urlPattern        String   @map("url_pattern")
+  colorCode         String   @default("#1890ff") @map("color_code")
+  iconUrl           String?  @map("icon_url")
+  rateLimit         Int      @default(100) @map("rate_limit")
+  supportedFeatures Json?    @default("[]") @map("supported_features")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // 关系
+  creatorAccounts   CreatorAccount[]
+
+  @@map("platforms")
+}
+
+// 创作者账号表
+model CreatorAccount {
+  id                Int       @id @default(autoincrement())
+  userId            Int       @map("user_id")
+  platformId        Int       @map("platform_id")
+  platformUserId    String    @map("platform_user_id")
+  username          String
+  displayName       String?   @map("display_name")
+  profileUrl        String    @map("profile_url")
+  avatarUrl         String?   @map("avatar_url")
+  bio               String?
+  followerCount     BigInt    @default(0) @map("follower_count")
+  followingCount    BigInt    @default(0) @map("following_count")
+  totalVideos       Int       @default(0) @map("total_videos")
+  isVerified        Boolean   @default(false) @map("is_verified")
+  status            String    @default("active")
+  lastScrapedAt     DateTime? @map("last_scraped_at")
+  lastVideoCrawlAt  DateTime? @map("last_video_crawl_at")
+  scrapeFrequency   Int       @default(24) @map("scrape_frequency")
+  metadata          Json?     @default("{}")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // 关系
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform          Platform   @relation(fields: [platformId], references: [id])
+  videos            Video[]
+  scrapeTasks       ScrapeTask[]
+
+  @@unique([userId, platformId, platformUserId])
+  @@map("creator_accounts")
+}
+
+// 视频表
+model Video {
+  id                Int       @id @default(autoincrement())
+  accountId         Int       @map("account_id")
+  platformVideoId   String    @map("platform_video_id")
+  title             String
+  description       String?
+  videoUrl          String    @map("video_url")
+  thumbnailUrl      String    @map("thumbnail_url")
+  thumbnailLocalPath String?  @map("thumbnail_local_path")
+  duration          Int?
+  publishedAt       DateTime  @map("published_at")
+  tags              Json?     @default("[]")
+  viewCount         BigInt    @default(0) @map("view_count")
+  likeCount         BigInt    @default(0) @map("like_count")
+  commentCount      BigInt    @default(0) @map("comment_count")
+  shareCount        BigInt    @default(0) @map("share_count")
+  saveCount         BigInt    @default(0) @map("save_count")
+  firstScrapedAt    DateTime  @default(now()) @map("first_scraped_at")
+  lastUpdatedAt     DateTime  @updatedAt @map("last_updated_at")
+  dataSource        String    @default("api") @map("data_source")
+  metadata          Json?     @default("{}")
+
+  // 关系
+  account           CreatorAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  metricsHistory    VideoMetricsHistory[]
+
+  @@unique([accountId, platformVideoId])
+  @@index([publishedAt(sort: Desc)])
+  @@index([lastUpdatedAt(sort: Desc)])
+  @@map("videos")
+}
+
+// 视频指标历史表
+model VideoMetricsHistory {
+  id          Int      @id @default(autoincrement())
+  videoId     Int      @map("video_id")
+  viewCount   BigInt   @default(0) @map("view_count")
+  likeCount   BigInt   @default(0) @map("like_count")
+  commentCount BigInt  @default(0) @map("comment_count")
+  shareCount  BigInt   @default(0) @map("share_count")
+  saveCount   BigInt   @default(0) @map("save_count")
+  recordedAt  DateTime @default(now()) @map("recorded_at")
+
+  // 关系
+  video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId, recordedAt(sort: Desc)])
+  @@map("video_metrics_history")
+}
+
+// 抓取任务表
+model ScrapeTask {
+  id               Int       @id @default(autoincrement())
+  userId           Int       @map("user_id")
+  accountId        Int?      @map("account_id")
+  taskType         String    @map("task_type")
+  status           String    @default("pending")
+  priority         Int       @default(5)
+  config           Json?     @default("{}")
+  startedAt        DateTime? @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+  errorMessage     String?   @map("error_message")
+  retryCount       Int       @default(0) @map("retry_count")
+  maxRetries       Int       @default(3) @map("max_retries")
+  totalVideosFound Int       @default(0) @map("total_videos_found")
+  newVideosAdded   Int       @default(0) @map("new_videos_added")
+  videosUpdated    Int       @default(0) @map("videos_updated")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  // 关系
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account          CreatorAccount?  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("scrape_tasks")
+}
+
+// 系统配置表
+model SystemConfig {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       Json
+  description String?
+  isPublic    Boolean  @default(false) @map("is_public")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_configs")
+}
+
+// 审计日志表
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int?     @map("user_id")
+  action      String
+  resourceType String  @map("resource_type")
+  resourceId  Int?     @map("resource_id")
+  oldValues   Json?    @map("old_values")
+  newValues   Json?    @map("new_values")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // 关系
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([resourceType, resourceId])
+  @@map("audit_logs")
+}
