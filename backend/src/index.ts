@@ -3,14 +3,17 @@ import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import dotenv from 'dotenv'
-import { prisma, connectDatabase, disconnectDatabase } from './database/prisma'
-import { logger } from './utils/logger'
-import { errorHandler } from './middleware/errorHandler'
-import { rateLimiter } from './middleware/rateLimiter'
-import { requestLogger } from './middleware/requestLogger'
+import db from './shared/database/db'
+import * as schema from './shared/database/schema'
+import { logger } from './shared/utils/logger'
+import { platforms } from './shared/database/schema'
+import { errorHandler } from './shared/middleware/errorHandler'
+import { rateLimiter } from './shared/middleware/rateLimiter'
+import { requestLogger } from './shared/middleware/requestLogger'
 
 // 导入路由
-import authRoutes from './routes/auth'
+import { userRoutes } from './modules/users'
+import { platformRoutes } from './modules/platforms'
 import accountRoutes from './routes/accounts'
 import videoRoutes from './routes/videos'
 import scrapeRoutes from './routes/scrape'
@@ -43,7 +46,8 @@ app.use(rateLimiter)
 app.use(requestLogger)
 
 // API路由
-app.use('/api/v1/auth', authRoutes)
+app.use('/api/v1/users', userRoutes)
+app.use('/api/v1/platforms', platformRoutes)
 app.use('/api/v1/accounts', accountRoutes)
 app.use('/api/v1/videos', videoRoutes)
 app.use('/api/v1/scrape', scrapeRoutes)
@@ -77,10 +81,6 @@ const PORT = process.env.PORT || 8000
 
 async function startServer() {
   try {
-    // 初始化数据库连接
-    await connectDatabase()
-    logger.info('Database connection initialized')
-
     // 启动服务器
     app.listen(PORT, () => {
       logger.info(`Server started successfully`, {
@@ -101,13 +101,11 @@ async function startServer() {
 // 优雅关闭
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully')
-  await disconnectDatabase()
   process.exit(0)
 })
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully')
-  await disconnectDatabase()
   process.exit(0)
 })
 

@@ -4,41 +4,19 @@ import type {
   PlatformType,
   ProfileData,
   VideoData,
-  VideosResponse
+  VideosResponse,
+  ScrapeCreatorsProfileResponse,
+  ScrapeCreatorsVideoResponse
 } from './index'
-import type {
-  TikTokProfileResponse,
-  TikTokVideoResponse,
-  TikTokVideosResponse,
-  InstagramProfileResponse,
-  InstagramPostResponse,
-  InstagramPostsResponse,
-  YouTubeChannelResponse,
-  YouTubeVideoResponse,
-  YouTubeVideosResponse,
-  FacebookProfileResponse,
-  FacebookPostResponse,
-  FacebookPostsResponse
-} from './platforms'
 
 // 平台特定的原始响应类型
 export type PlatformProfileResponse =
-  | TikTokProfileResponse
-  | InstagramProfileResponse
-  | YouTubeChannelResponse
-  | FacebookProfileResponse
+  | ScrapeCreatorsProfileResponse
 
 export type PlatformVideoResponse =
-  | TikTokVideoResponse
-  | InstagramPostResponse
-  | YouTubeVideoResponse
-  | FacebookPostResponse
+  | ScrapeCreatorsVideoResponse
 
-export type PlatformVideosResponse =
-  | TikTokVideosResponse
-  | InstagramPostsResponse
-  | YouTubeVideosResponse
-  | FacebookPostsResponse
+export type PlatformVideosResponse = any
 
 // 平台特定的数据转换器类型
 export type ProfileTransformer<T> = (data: T, username: string, profileUrl: string) => ProfileData

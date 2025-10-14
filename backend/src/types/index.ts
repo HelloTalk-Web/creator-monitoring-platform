@@ -55,13 +55,11 @@ export interface VideosResponse {
   nextCursor?: string
 }
 
-// 平台适配器接口
-export interface IPlatformAdapter {
-  getPlatform(): PlatformType
-  getProfile(username: string): Promise<ProfileData>
-  getVideos(username: string, cursor?: string): Promise<VideosResponse>
-  getVideoDetails(videoId: string): Promise<VideoData>
-}
+// 重新导出适配器相关类型
+export * from './adapters'
+
+// 注意：IPlatformAdapter 接口已移动到 adapters/platformAdapter.ts
+// 为了支持不同平台的差异化API设计
 
 // API响应格式
 export interface ApiResponse<T = any> {
@@ -120,22 +118,71 @@ export interface SyncAccountRequest {
   force?: boolean // 是否强制重新同步
 }
 
-// Scrape Creators API响应类型
+// Scrape Creators API v1 响应类型
 export interface ScrapeCreatorsProfileResponse {
-  // TikTok Profile
-  username?: string
-  displayName?: string
-  avatarUrl?: string
-  bio?: string
-  followerCount?: number
-  followingCount?: number
-  videoCount?: number
-  isVerified?: boolean
-  [key: string]: any
+  user: {
+    id: string
+    shortId: string
+    uniqueId: string
+    nickname: string
+    avatarLarger: string
+    avatarMedium: string
+    avatarThumb: string
+    signature: string
+    createTime: number
+    verified: boolean
+    secUid: string
+    ftc: boolean
+    relation: number
+    openFavorite: boolean
+    bioLink: {
+      link: string
+      risk: number
+    }
+    commentSetting: number
+    commerceUserInfo: {
+      commerceUser: boolean
+    }
+    duetSetting: number
+    stitchSetting: number
+    privateAccount: boolean
+    secret: boolean
+    isADVirtual: boolean
+    roomId: string
+    uniqueIdModifyTime: number
+    ttSeller: boolean
+    downloadSetting: number
+    profileTab: {
+      showMusicTab: boolean
+      showQuestionTab: boolean
+      showPlayListTab: boolean
+    }
+    followingVisibility: number
+    recommendReason: string
+    nowInvitationCardUrl: string
+    nickNameModifyTime: number
+    isEmbedBanned: boolean
+    canExpPlaylist: boolean
+    profileEmbedPermission: number
+    language: string
+    eventList: any[]
+    suggestAccountBind: boolean
+    isOrganization: number
+  }
+  stats: {
+    followerCount: number
+    followingCount: number
+    heart: number
+    heartCount: number
+    videoCount: number
+    diggCount: number
+    friendCount: number
+  }
+  itemList: any[]
 }
 
+// 视频响应类型（保持现有结构兼容）
 export interface ScrapeCreatorsVideoResponse {
-  // TikTok Video
   videoId?: string
   title?: string
   description?: string
