@@ -247,7 +247,20 @@ export class ScraperManager {
     const title = (videoRawData.desc || '').substring(0, 500)
     const description = (videoRawData.desc || '').substring(0, 1000)
     const videoUrl = video.play_addr?.url_list?.[0] || ''
-    const thumbnailUrl = video.cover?.url_list?.[0] || video.download_addr?.url_list?.[0] || ''
+
+    // 提取JPEG格式的封面URL（优先使用第3个URL，通常是JPEG格式）
+    let thumbnailUrl = ''
+    const coverUrlList = video.cover?.url_list || video.download_addr?.url_list || []
+    if (coverUrlList.length >= 3) {
+      // 第3个URL通常是JPEG格式，浏览器兼容性最好
+      thumbnailUrl = coverUrlList[2]
+    } else if (coverUrlList.length > 0) {
+      // 如果没有第3个URL，使用第一个并尝试转换为JPEG
+      thumbnailUrl = coverUrlList[0].replace(/\.heic\?/i, '.jpeg?')
+    }
+
+    // 从标题中提取hashtag标签
+    const tags = this.extractHashtags(title)
 
     return {
       videoId: videoRawData.aweme_id || '',
@@ -257,13 +270,34 @@ export class ScraperManager {
       thumbnailUrl: thumbnailUrl.substring(0, 500),
       duration: video.duration ? Math.round(video.duration / 1000) : undefined,
       publishedAt: new Date((videoRawData.create_time || 0) * 1000).toISOString(),
-      tags: [], // V3 API中标签信息在不同字段中
+      tags,
       viewCount: stats.play_count || 0,
       likeCount: stats.digg_count || 0,
       commentCount: stats.comment_count || 0,
       shareCount: stats.share_count || 0,
       saveCount: stats.collect_count || 0
     }
+  }
+
+  /**
+   * 从文本中提取hashtag标签
+   */
+  private extractHashtags(text: string): string[] {
+    if (!text) return []
+
+    // 匹配 #标签 格式（支持字母、数字、下划线和中文）
+    const hashtagRegex = /#([a-zA-Z0-9_\u4e00-\u9fff]+)/g
+    const matches = text.matchAll(hashtagRegex)
+
+    const tags: string[] = []
+    for (const match of matches) {
+      if (match[1]) {
+        tags.push(match[1])
+      }
+    }
+
+    // 去重并返回
+    return Array.from(new Set(tags))
   }
 
   /**
