@@ -125,11 +125,6 @@ export default function VideosPage() {
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }
 
-  // 获取缩略图URL（后端已经返回JPEG格式）
-  const getThumbnailUrl = (url: string | null) => {
-    return url
-  }
-
   return (
     <div className="container mx-auto py-8 px-4">
       {/* 返回按钮和账号信息 */}
@@ -197,9 +192,9 @@ export default function VideosPage() {
             {videos.map((video) => (
               <Card key={video.id} className="overflow-hidden">
                 <div className="relative aspect-[9/16] bg-muted">
-                  {getThumbnailUrl(video.thumbnailUrl) ? (
+                  {video.thumbnailUrl ? (
                     <img
-                      src={getThumbnailUrl(video.thumbnailUrl)!}
+                      src={video.thumbnailUrl}
                       alt={video.title}
                       className="w-full h-full object-cover"
                       onError={(e) => {
