@@ -54,6 +54,8 @@ export default function VideosPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [tagQuery, setTagQuery] = useState("")
+  const [publishedAfter, setPublishedAfter] = useState("")
+  const [publishedBefore, setPublishedBefore] = useState("")
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = 12
@@ -83,7 +85,9 @@ export default function VideosPage() {
           page,
           pageSize,
           ...(searchQuery && { title: searchQuery }),
-          ...(tagQuery && { tag: tagQuery })
+          ...(tagQuery && { tag: tagQuery }),
+          ...(publishedAfter && { publishedAfter }),
+          ...(publishedBefore && { publishedBefore })
         }
       })
 
@@ -189,6 +193,36 @@ export default function VideosPage() {
                   onKeyPress={(e) => e.key === "Enter" && handleSearch()}
                 />
               </div>
+            </div>
+            <div className="flex gap-2 items-center">
+              <div className="flex items-center gap-2 flex-1">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">发布时间:</span>
+                <Input
+                  type="date"
+                  value={publishedAfter}
+                  onChange={(e) => setPublishedAfter(e.target.value)}
+                  className="flex-1"
+                />
+                <span className="text-sm text-muted-foreground">至</span>
+                <Input
+                  type="date"
+                  value={publishedBefore}
+                  onChange={(e) => setPublishedBefore(e.target.value)}
+                  className="flex-1"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setPublishedAfter("")
+                  setPublishedBefore("")
+                  setPage(1)
+                  setTimeout(() => fetchVideos(), 0)
+                }}
+              >
+                清除
+              </Button>
             </div>
           </div>
         </CardContent>
