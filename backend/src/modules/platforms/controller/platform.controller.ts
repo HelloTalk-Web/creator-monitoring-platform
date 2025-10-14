@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { platformManager } from '../managers/platform.manager'
+import { platformService } from '../service/platform.service'
 import { logger } from '../../../shared/utils/logger'
 import type {
   CreatePlatformRequest,
@@ -13,229 +14,7 @@ import type {
  * 平台控制器 - 处理HTTP请求和响应
  */
 export class PlatformController {
-  // 获取平台列表
-  async getPlatforms(req: Request, res: Response) {
-    try {
-      const { page, limit, name, isActive } = req.query
-
-      const filters = {
-        page: page ? Number(page) : 1,
-        limit: limit ? Number(limit) : 10,
-        name: name as string,
-        isActive: isActive ? isActive === 'true' : undefined
-      }
-
-      const result = await platformManager.getPlatforms(filters)
-
-      logger.info('Platforms retrieved successfully', {
-        count: result.platforms.length,
-        filters
-      })
-
-      res.json({
-        success: true,
-        data: result
-      })
-    } catch (error) {
-      logger.error('Failed to get platforms', {
-        query: req.query,
-        error: (error as Error).message
-      })
-      res.status(500).json({
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to get platforms'
-        }
-      })
-    }
-  }
-
-  // 根据ID获取平台
-  async getPlatform(req: Request, res: Response) {
-    try {
-      const { id } = req.params
-
-      const platform = await platformManager.getPlatform(Number(id))
-
-      if (!platform) {
-        return res.status(404).json({
-          success: false,
-          error: {
-            code: 'PLATFORM_NOT_FOUND',
-            message: 'Platform not found'
-          }
-        })
-      }
-
-      logger.info('Platform retrieved successfully', { platformId: id })
-
-      res.json({
-        success: true,
-        data: { platform }
-      })
-    } catch (error) {
-      const errorMessage = (error as Error).message
-
-      logger.error('Failed to get platform', {
-        id: req.params.id,
-        error: errorMessage
-      })
-
-      res.status(500).json({
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to get platform'
-        }
-      })
-    }
-  }
-
-  // 创建平台
-  async createPlatform(req: Request, res: Response) {
-    try {
-      const platformData: CreatePlatformRequest = req.body
-
-      // 基本验证
-      if (!platformData.name || !platformData.displayName || !platformData.baseUrl || !platformData.urlPattern) {
-        return res.status(400).json({
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Name, displayName, baseUrl, and urlPattern are required'
-          }
-        })
-      }
-
-      const createdPlatform = await platformManager.createPlatform(platformData)
-
-      logger.info('Platform created successfully', {
-        platformId: createdPlatform.id,
-        name: createdPlatform.name
-      })
-
-      res.status(201).json({
-        success: true,
-        data: { platform: createdPlatform },
-        message: 'Platform created successfully'
-      })
-    } catch (error) {
-      const errorMessage = (error as Error).message
-
-      logger.error('Failed to create platform', {
-        body: req.body,
-        error: errorMessage
-      })
-
-      let statusCode = 500
-      let errorCode = 'INTERNAL_ERROR'
-
-      if (errorMessage.includes('already exists')) {
-        statusCode = 409
-        errorCode = 'PLATFORM_EXISTS'
-      }
-
-      res.status(statusCode).json({
-        success: false,
-        error: {
-          code: errorCode,
-          message: errorMessage
-        }
-      })
-    }
-  }
-
-  // 更新平台
-  async updatePlatform(req: Request, res: Response) {
-    try {
-      const { id } = req.params
-      const platformData: UpdatePlatformRequest = req.body
-
-      const updatedPlatform = await platformManager.updatePlatform(Number(id), platformData)
-
-      logger.info('Platform updated successfully', {
-        platformId: updatedPlatform.id,
-        name: updatedPlatform.name
-      })
-
-      res.json({
-        success: true,
-        data: { platform: updatedPlatform },
-        message: 'Platform updated successfully'
-      })
-    } catch (error) {
-      const errorMessage = (error as Error).message
-
-      logger.error('Failed to update platform', {
-        id: req.params.id,
-        body: req.body,
-        error: errorMessage
-      })
-
-      let statusCode = 500
-      let errorCode = 'INTERNAL_ERROR'
-
-      if (errorMessage.includes('not found')) {
-        statusCode = 404
-        errorCode = 'PLATFORM_NOT_FOUND'
-      } else if (errorMessage.includes('already exists')) {
-        statusCode = 409
-        errorCode = 'PLATFORM_NAME_EXISTS'
-      }
-
-      res.status(statusCode).json({
-        success: false,
-        error: {
-          code: errorCode,
-          message: errorMessage
-        }
-      })
-    }
-  }
-
-  // 删除平台
-  async deletePlatform(req: Request, res: Response) {
-    try {
-      const { id } = req.params
-
-      await platformManager.deletePlatform(Number(id))
-
-      logger.info('Platform deleted successfully', { platformId: id })
-
-      res.json({
-        success: true,
-        message: 'Platform deleted successfully'
-      })
-    } catch (error) {
-      const errorMessage = (error as Error).message
-
-      logger.error('Failed to delete platform', {
-        id: req.params.id,
-        error: errorMessage
-      })
-
-      let statusCode = 500
-      let errorCode = 'INTERNAL_ERROR'
-
-      if (errorMessage.includes('not found')) {
-        statusCode = 404
-        errorCode = 'PLATFORM_NOT_FOUND'
-      } else if (errorMessage.includes('in use')) {
-        statusCode = 409
-        errorCode = 'PLATFORM_IN_USE'
-      }
-
-      res.status(statusCode).json({
-        success: false,
-        error: {
-          code: errorCode,
-          message: errorMessage
-        }
-      })
-    }
-  }
-
+  
 
   /**
    * 创建或更新创作者账号
@@ -342,26 +121,34 @@ export class PlatformController {
   }
 
   /**
-   * 获取创作者账号列表
+   * 获取创作者账号列表（支持按平台过滤）
    */
   async getCreatorAccounts(req: Request, res: Response) {
     try {
-      const { page = 1, limit = 10, platform, userId, username } = req.query
+      const {
+        page = 1,
+        limit = 10,
+        platform,        // 按平台过滤：tiktok, instagram, youtube
+        userId,
+        username,
+        sortBy = 'updatedAt',
+        sortOrder = 'desc'
+      } = req.query
 
-      // 这里应该调用 repository 层来获取数据
-      // 暂时返回空结果，等实现 repository 后再完善
-      const result = {
-        accounts: [],
-        pagination: {
-          page: Number(page),
-          limit: Number(limit),
-          total: 0,
-          totalPages: 0
-        }
-      }
+      // 调用 service 层获取数据，支持平台关联查询
+      const result = await platformService.getCreatorAccounts({
+        page: Number(page),
+        limit: Number(limit),
+        platform: platform as string,
+        userId: userId ? Number(userId) : undefined,
+        username: username as string,
+        sortBy: sortBy as any,
+        sortOrder: sortOrder as any
+      })
 
       logger.info('Creator accounts retrieved successfully', {
-        filters: { platform, userId, username }
+        filters: { platform, userId, username },
+        count: result.accounts.length
       })
 
       res.json({
@@ -385,7 +172,7 @@ export class PlatformController {
   }
 
   /**
-   * 根据ID获取创作者账号
+   * 根据ID获取创作者账号详情（包含平台信息）
    */
   async getCreatorAccount(req: Request, res: Response) {
     try {
@@ -401,9 +188,8 @@ export class PlatformController {
         })
       }
 
-      // 这里应该调用 repository 层来获取数据
-      // 暂时返回空结果
-      const account = null
+      // 调用 service 层获取账号详情，包含关联的平台信息
+      const account = await platformService.getCreatorAccountById(Number(id))
 
       if (!account) {
         return res.status(404).json({
@@ -498,8 +284,8 @@ export class PlatformController {
         })
       }
 
-      // 这里应该调用 repository 层来删除数据
-      // 暂时返回模拟结果
+      // 调用 service 层删除账号
+      await platformService.deleteCreatorAccount(Number(id))
 
       logger.info('Creator account deleted successfully', { accountId: id })
 
@@ -508,10 +294,23 @@ export class PlatformController {
         message: '创作者账号删除成功'
       })
     } catch (error) {
+      const errorMessage = (error as Error).message
+
       logger.error('Failed to delete creator account', {
         id: req.params.id,
-        error: (error as Error).message
+        error: errorMessage
       })
+
+      // 如果是账号不存在的错误,返回404
+      if (errorMessage.includes('不存在')) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'ACCOUNT_NOT_FOUND',
+            message: errorMessage
+          }
+        })
+      }
 
       res.status(500).json({
         success: false,

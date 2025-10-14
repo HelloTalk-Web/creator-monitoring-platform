@@ -38,26 +38,22 @@ export class UserService {
         whereConditions.push(ilike(users.name, `%${filters.name}%`))
       }
 
-      // 查询数据
-      let query = db.select().from(users)
+      // 构建查询
+      const baseQuery = db.select().from(users)
 
-      if (whereConditions.length > 0) {
-        query = query.where(and(...whereConditions))
-      }
-
-      const userList = await query
+      const userList = await (whereConditions.length > 0
+        ? baseQuery.where(and(...whereConditions))
+        : baseQuery
+      )
         .limit(limitNum)
         .offset(offset)
         .orderBy(desc(users.createdAt))
 
       // 查询总数
-      let countQuery = db.select().from(users)
-
-      if (whereConditions.length > 0) {
-        countQuery = countQuery.where(and(...whereConditions))
-      }
-
-      const total = await countQuery
+      const total = await (whereConditions.length > 0
+        ? baseQuery.where(and(...whereConditions))
+        : baseQuery
+      )
       const total_count = total.length
 
       logger.info('Users retrieved successfully', {

@@ -3,6 +3,11 @@ import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import dotenv from 'dotenv'
+
+// 加载环境变量
+dotenv.config()
+
+// 在环境变量加载后导入数据库和其他模块
 import db from './shared/database/db'
 import * as schema from './shared/database/schema'
 import { logger } from './shared/utils/logger'
@@ -14,13 +19,10 @@ import { requestLogger } from './shared/middleware/requestLogger'
 // 导入路由
 import { userRoutes } from './modules/users'
 import { platformRoutes } from './modules/platforms'
-import accountRoutes from './routes/accounts'
+// import accountRoutes from './routes/accounts'  // 暂时注释掉，文件不存在
 import videoRoutes from './routes/videos'
 import scrapeRoutes from './routes/scrape'
-import analyticsRoutes from './routes/analytics'
-
-// 加载环境变量
-dotenv.config()
+// import analyticsRoutes from './routes/analytics'  // 暂时注释掉，文件不存在
 
 // 创建Express应用
 const app = express()
@@ -48,10 +50,14 @@ app.use(requestLogger)
 // API路由
 app.use('/api/v1/users', userRoutes)
 app.use('/api/v1/platforms', platformRoutes)
-app.use('/api/v1/accounts', accountRoutes)
+// app.use('/api/v1/accounts', accountRoutes)  // 暂时注释掉
 app.use('/api/v1/videos', videoRoutes)
 app.use('/api/v1/scrape', scrapeRoutes)
-app.use('/api/v1/analytics', analyticsRoutes)
+// app.use('/api/v1/analytics', analyticsRoutes)  // 暂时注释掉
+
+// 根据新的API文档，我们需要支持这些路径：
+app.use('/api/scrape', scrapeRoutes)  // 支持前端调用的 /api/scrape/complete
+app.use('/api/platforms', platformRoutes)  // 支持前端调用的 /api/platforms/accounts
 
 // 健康检查端点
 app.get('/health', (req, res) => {

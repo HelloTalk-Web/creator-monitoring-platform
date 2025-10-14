@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { logger } from '../../../shared/utils/logger'
+import { scraperManager } from '../manager/scraper.manager'
 
 /**
  * 爬虫控制器 - 处理数据抓取相关的HTTP请求
@@ -79,22 +80,25 @@ export class ScraperController {
         })
       }
 
-      // TODO: 调用爬虫manager进行数据抓取
-      // 这里需要导入和使用爬虫管理器
+      // 调用爬虫manager进行数据抓取
+      const result = await scraperManager.scrapeAndStoreCreatorAccount({
+        url,
+        userId
+      })
 
-      logger.info('Profile scraping initiated', {
+      logger.info('Profile scraped successfully', {
         url,
         platform: parsed.platform,
-        identifier: parsed.identifier
+        identifier: parsed.identifier,
+        accountId: result.accountId,
+        isNew: result.isNew,
+        videosCount: result.videosCount
       })
 
       res.json({
         success: true,
-        message: '用户资料抓取任务已启动',
-        data: {
-          platform: parsed.platform,
-          identifier: parsed.identifier
-        }
+        message: result.isNew ? '账号创建并抓取成功' : '账号更新并抓取成功',
+        data: result
       })
     } catch (error) {
       logger.error('Failed to scrape profile', {
@@ -140,23 +144,24 @@ export class ScraperController {
         })
       }
 
-      // TODO: 调用爬虫manager进行数据抓取
+      // 调用爬虫manager进行数据抓取（包含视频）
+      const result = await scraperManager.scrapeAndStoreCreatorAccount({
+        url,
+        userId
+      })
 
-      logger.info('Videos scraping initiated', {
+      logger.info('Videos scraped successfully', {
         url,
         platform: parsed.platform,
         identifier: parsed.identifier,
-        limit
+        accountId: result.accountId,
+        videosCount: result.videosCount
       })
 
       res.json({
         success: true,
-        message: '视频列表抓取任务已启动',
-        data: {
-          platform: parsed.platform,
-          identifier: parsed.identifier,
-          limit
-        }
+        message: `成功抓取 ${result.videosCount} 个视频`,
+        data: result
       })
     } catch (error) {
       logger.error('Failed to scrape videos', {
@@ -202,21 +207,25 @@ export class ScraperController {
         })
       }
 
-      // TODO: 调用爬虫manager进行完整数据抓取
+      // 调用爬虫manager进行完整数据抓取
+      const result = await scraperManager.scrapeAndStoreCreatorAccount({
+        url,
+        userId
+      })
 
-      logger.info('Complete scraping initiated', {
+      logger.info('Complete scraping finished', {
         url,
         platform: parsed.platform,
-        identifier: parsed.identifier
+        identifier: parsed.identifier,
+        accountId: result.accountId,
+        isNew: result.isNew,
+        videosCount: result.videosCount
       })
 
       res.json({
         success: true,
-        message: '完整信息抓取任务已启动',
-        data: {
-          platform: parsed.platform,
-          identifier: parsed.identifier
-        }
+        message: result.isNew ? '账号创建并完整抓取成功' : '账号更新并完整抓取成功',
+        data: result
       })
     } catch (error) {
       logger.error('Failed to scrape complete data', {

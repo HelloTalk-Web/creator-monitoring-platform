@@ -14,7 +14,7 @@ import type {
   PlatformsListResponse
 } from '../types'
 import { platformRepository } from '../repository/platform.repository'
-import { getPlatformCrawler } from '../crawlers'
+import { getPlatformCrawler } from '../../scrapers/crawlers'
 
 
 /**

@@ -1,6 +1,6 @@
 import { logger } from '../../../shared/utils/logger'
 import { getPlatformCrawler } from '../crawlers'
-import { creatorAccounts, videos, type NewCreatorAccount, type NewVideo } from '../../../shared/database/schema'
+import { creatorAccounts, videos, platforms, type NewCreatorAccount, type NewVideo } from '../../../shared/database/schema'
 import { eq } from 'drizzle-orm'
 import { db } from '../../../shared/database/db'
 
@@ -243,12 +243,18 @@ export class ScraperManager {
     const video = videoRawData.video || {}
     const stats = videoRawData.statistics || {}
 
+    // 限制字段长度以符合数据库约束
+    const title = (videoRawData.desc || '').substring(0, 500)
+    const description = (videoRawData.desc || '').substring(0, 1000)
+    const videoUrl = video.play_addr?.url_list?.[0] || ''
+    const thumbnailUrl = video.cover?.url_list?.[0] || video.download_addr?.url_list?.[0] || ''
+
     return {
       videoId: videoRawData.aweme_id || '',
-      title: videoRawData.desc || '',
-      description: videoRawData.desc || '',
-      videoUrl: video.play_addr?.url_list?.[0] || '',
-      thumbnailUrl: video.cover?.url_list?.[0] || video.download_addr?.url_list?.[0] || '',
+      title,
+      description,
+      videoUrl: videoUrl.substring(0, 500),
+      thumbnailUrl: thumbnailUrl.substring(0, 500),
       duration: video.duration ? Math.round(video.duration / 1000) : undefined,
       publishedAt: new Date((videoRawData.create_time || 0) * 1000).toISOString(),
       tags: [], // V3 API中标签信息在不同字段中
@@ -264,12 +270,35 @@ export class ScraperManager {
    * 根据平台名称获取平台信息
    */
   private async getPlatformByName(name: string) {
-    // 这里需要导入platform repository或直接查询数据库
-    // 暂时返回模拟数据
-    return {
-      id: 1,
-      name: name,
-      displayName: name.charAt(0).toUpperCase() + name.slice(1)
+    try {
+      // 直接查询数据库获取平台信息
+      const result = await db
+        .select()
+        .from(platforms)
+        .where(eq(platforms.name, name))
+        .limit(1)
+
+      if (result.length === 0) {
+        // 如果平台不存在，创建一个基础平台记录
+        const [newPlatform] = await db
+          .insert(platforms)
+          .values({
+            name: name,
+            displayName: name.charAt(0).toUpperCase() + name.slice(1),
+            baseUrl: `https://www.${name}.com`,
+            urlPattern: `https://www.${name}.com/@{identifier}`,
+            colorCode: '#1890ff',
+            isActive: true
+          })
+          .returning()
+
+        return newPlatform
+      }
+
+      return result[0]
+    } catch (error) {
+      logger.error('Failed to get platform by name', { name, error })
+      throw new Error(`Failed to get platform: ${name}`)
     }
   }
 
