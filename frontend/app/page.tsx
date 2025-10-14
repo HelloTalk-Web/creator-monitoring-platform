@@ -241,7 +241,7 @@ export default function HomePage() {
                         <Link href={`/videos/${account.id}`} className="flex-1">
                           <Button variant="outline" size="sm" className="w-full">
                             <Video className="mr-2 h-4 w-4" />
-                            查看视频
+                            查看作品数据
                           </Button>
                         </Link>
                         <Button
