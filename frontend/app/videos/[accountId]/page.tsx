@@ -19,6 +19,7 @@ interface Video {
   thumbnailUrl: string | null  // 后端字段名: thumbnailUrl
   videoUrl: string
   publishedAt: string
+  tags: string[]  // 标签数组
   viewCount: number | null  // 后端字段名: viewCount
   likeCount: number | null  // 后端字段名: likeCount
   commentCount: number | null  // 后端字段名: commentCount
@@ -52,6 +53,7 @@ export default function VideosPage() {
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
+  const [tagQuery, setTagQuery] = useState("")
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = 12
@@ -80,7 +82,8 @@ export default function VideosPage() {
           accountId,
           page,
           pageSize,
-          ...(searchQuery && { title: searchQuery })
+          ...(searchQuery && { title: searchQuery }),
+          ...(tagQuery && { tag: tagQuery })
         }
       })
 
@@ -163,18 +166,30 @@ export default function VideosPage() {
       {/* 搜索和筛选 */}
       <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Input
-                placeholder="搜索视频标题..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-              />
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Input
+                  placeholder="搜索视频标题..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                />
+              </div>
+              <Button onClick={handleSearch} variant="outline">
+                <Search className="h-4 w-4" />
+              </Button>
             </div>
-            <Button onClick={handleSearch} variant="outline">
-              <Search className="h-4 w-4" />
-            </Button>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Input
+                  placeholder="按标签搜索（如：language, japanese）..."
+                  value={tagQuery}
+                  onChange={(e) => setTagQuery(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                />
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -223,6 +238,31 @@ export default function VideosPage() {
                     <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
                       {video.description}
                     </p>
+                  )}
+
+                  {/* 标签显示 */}
+                  {video.tags && video.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {video.tags.slice(0, 3).map((tag, index) => (
+                        <Badge
+                          key={index}
+                          variant="secondary"
+                          className="text-xs px-2 py-0 cursor-pointer hover:bg-primary hover:text-primary-foreground"
+                          onClick={() => {
+                            setTagQuery(tag)
+                            setPage(1)
+                            setTimeout(() => fetchVideos(), 0)
+                          }}
+                        >
+                          #{tag}
+                        </Badge>
+                      ))}
+                      {video.tags.length > 3 && (
+                        <Badge variant="outline" className="text-xs px-2 py-0">
+                          +{video.tags.length - 3}
+                        </Badge>
+                      )}
+                    </div>
                   )}
 
                   <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground mb-3">

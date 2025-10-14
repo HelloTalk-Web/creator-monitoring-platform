@@ -1,7 +1,7 @@
 import { logger } from '../../../shared/utils/logger'
 import { db } from '../../../shared/database/db'
 import { videos, creatorAccounts, platforms } from '../../../shared/database/schema'
-import { eq, and, gte, lte, like, desc, asc, count, sum, avg } from 'drizzle-orm'
+import { eq, and, gte, lte, like, desc, asc, count, sum, avg, sql } from 'drizzle-orm'
 import type {
   VideoQueryParams,
   VideosListResponse,
@@ -52,6 +52,23 @@ export class VideoService {
 
     if (title) {
       conditions.push(like(videos.title, `%${title}%`))
+    }
+
+    // 按标签过滤：检查tags数组中是否包含指定标签
+    if (tags) {
+      // tags可以是字符串（单个标签）或字符串数组（多个标签）
+      const tagArray = Array.isArray(tags) ? tags : [tags]
+
+      // 使用 PostgreSQL 的 jsonb 操作符 @> 检查数组包含
+      // 对每个标签创建一个条件：tags字段（JSON数组）包含该标签
+      const tagConditions = tagArray.map(tag =>
+        sql`${videos.tags}::jsonb @> ${JSON.stringify([tag])}::jsonb`
+      )
+
+      // 如果有多个标签，使用 OR 连接（匹配任意一个标签即可）
+      if (tagConditions.length > 0) {
+        conditions.push(sql`(${sql.join(tagConditions, sql` OR `)})`)
+      }
     }
 
     if (publishedAfter) {

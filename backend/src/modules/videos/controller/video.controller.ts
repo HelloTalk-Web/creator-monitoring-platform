@@ -18,11 +18,21 @@ export class VideoController {
    */
   async getVideos(req: Request, res: Response) {
     try {
+      // 处理tags参数：支持单个tag或多个tags（逗号分隔）
+      let tagsParam: string | string[] | undefined = undefined
+      if (req.query.tag) {
+        // 单个tag参数（从前端tag搜索框）
+        tagsParam = req.query.tag as string
+      } else if (req.query.tags) {
+        // 多个tags参数（逗号分隔）
+        tagsParam = (req.query.tags as string).split(',')
+      }
+
       const queryParams: VideoQueryParams = {
         accountId: req.query.accountId ? Number(req.query.accountId) : undefined,
         platformVideoId: req.query.platformVideoId as string,
         title: req.query.title as string,
-        tags: req.query.tags ? (req.query.tags as string).split(',') : undefined,
+        tags: tagsParam,
         publishedAfter: req.query.publishedAfter as string,
         publishedBefore: req.query.publishedBefore as string,
         minViewCount: req.query.minViewCount ? Number(req.query.minViewCount) : undefined,
