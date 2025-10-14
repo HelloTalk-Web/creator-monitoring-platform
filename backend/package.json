@@ -14,7 +14,8 @@
     "db:migrate": "tsx src/database/migrate.ts",
     "db:seed": "tsx src/database/seed.ts",
     "db:reset": "tsx src/database/reset.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "script:update-videos": "tsx scripts/update-video-data.ts"
   },
   "keywords": [
     "creator",
