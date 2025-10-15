@@ -59,6 +59,7 @@ export const videos = pgTable('videos', {
   title: varchar('title', { length: 500 }).notNull(),
   description: text('description'),
   videoUrl: varchar('video_url', { length: 500 }).notNull(),
+  pageUrl: text('page_url'), // TikTok视频页面URL (如: https://www.tiktok.com/@username/video/123)
   thumbnailUrl: varchar('thumbnail_url', { length: 500 }).notNull(),
   thumbnailLocalPath: varchar('thumbnail_local_path', { length: 500 }),
   duration: integer('duration'),

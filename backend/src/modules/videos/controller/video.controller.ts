@@ -535,7 +535,7 @@ export class VideoController {
       '收藏数': Number(video.saveCount) || 0,
       '标签': Array.isArray(video.tags) ? video.tags.join(', ') : '',
       '是否热门': (Number(video.viewCount) || 0) > 10000 ? '是' : '否',
-      '视频链接': `https://www.tiktok.com/@${video.creatorUsername}/video/${video.platformVideoId}` || ''
+      '视频链接': video.pageUrl || video.videoUrl || ''
     }))
 
     // 创建工作簿和工作表

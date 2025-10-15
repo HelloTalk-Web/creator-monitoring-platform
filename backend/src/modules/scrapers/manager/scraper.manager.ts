@@ -192,6 +192,7 @@ export class ScraperManager {
             title: videoData.title,
             description: videoData.description,
             videoUrl: videoData.videoUrl,
+            pageUrl: videoData.pageUrl,
             thumbnailUrl: videoData.thumbnailUrl,
             duration: videoData.duration,
             tags: videoData.tags,
@@ -214,6 +215,7 @@ export class ScraperManager {
           title: videoData.title,
           description: videoData.description,
           videoUrl: videoData.videoUrl,
+          pageUrl: videoData.pageUrl,
           thumbnailUrl: videoData.thumbnailUrl,
           duration: videoData.duration,
           publishedAt: new Date(videoData.publishedAt),
@@ -262,11 +264,15 @@ export class ScraperManager {
     // 从标题中提取hashtag标签
     const tags = this.extractHashtags(title)
 
+    // 提取TikTok视频页面URL
+    const pageUrl = videoRawData.url || ''
+
     return {
       videoId: videoRawData.aweme_id || '',
       title,
       description,
       videoUrl: videoUrl.substring(0, 500),
+      pageUrl, // TikTok视频页面URL
       thumbnailUrl: thumbnailUrl.substring(0, 500),
       duration: video.duration ? Math.round(video.duration / 1000) : undefined,
       publishedAt: new Date((videoRawData.create_time || 0) * 1000).toISOString(),
@@ -461,6 +467,7 @@ export class ScraperManager {
           title: videoData.title,
           description: videoData.description,
           videoUrl: videoData.videoUrl,
+          pageUrl: videoData.pageUrl,
           thumbnailUrl: videoData.thumbnailUrl,
           duration: videoData.duration,
           tags: videoData.tags,

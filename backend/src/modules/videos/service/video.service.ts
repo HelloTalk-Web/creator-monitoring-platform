@@ -119,10 +119,41 @@ export class VideoService {
 
       const total = Number(totalCountResult[0].count)
 
-      // 获取视频列表
+      // 获取视频列表(JOIN创作者账号和平台信息)
       const videoList = await db
-        .select()
+        .select({
+          // 视频字段
+          id: videos.id,
+          accountId: videos.accountId,
+          platformVideoId: videos.platformVideoId,
+          title: videos.title,
+          description: videos.description,
+          videoUrl: videos.videoUrl,
+          pageUrl: videos.pageUrl,
+          thumbnailUrl: videos.thumbnailUrl,
+          thumbnailLocalPath: videos.thumbnailLocalPath,
+          duration: videos.duration,
+          publishedAt: videos.publishedAt,
+          tags: videos.tags,
+          viewCount: videos.viewCount,
+          likeCount: videos.likeCount,
+          commentCount: videos.commentCount,
+          shareCount: videos.shareCount,
+          saveCount: videos.saveCount,
+          firstScrapedAt: videos.firstScrapedAt,
+          lastUpdatedAt: videos.lastUpdatedAt,
+          dataSource: videos.dataSource,
+          metadata: videos.metadata,
+          // 创作者字段
+          creatorUsername: creatorAccounts.username,
+          creatorDisplayName: creatorAccounts.displayName,
+          // 平台字段
+          platformName: platforms.name,
+          platformDisplayName: platforms.displayName
+        })
         .from(videos)
+        .leftJoin(creatorAccounts, eq(videos.accountId, creatorAccounts.id))
+        .leftJoin(platforms, eq(creatorAccounts.platformId, platforms.id))
         .where(whereClause)
         .orderBy(sortDirection(sortColumn))
         .limit(limit)
