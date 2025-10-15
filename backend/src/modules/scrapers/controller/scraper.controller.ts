@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { logger } from '../../../shared/utils/logger'
 import { scraperManager } from '../manager/scraper.manager'
+import { apiKeyService } from '../../../shared/infrastructure/api-key.service'
 
 /**
  * 爬虫控制器 - 处理数据抓取相关的HTTP请求
@@ -354,6 +355,41 @@ export class ScraperController {
         error: {
           code: 'INTERNAL_ERROR',
           message: '更新视频数据失败'
+        }
+      })
+    }
+  }
+
+  /**
+   * 获取API密钥的积分余额
+   */
+  async getCreditBalance(req: Request, res: Response) {
+    try {
+      const results = await apiKeyService.getCreditBalance()
+      const totalCredits = results.reduce((sum, r) => sum + r.creditCount, 0)
+
+      logger.info('Credit balance fetched successfully', {
+        keysCount: results.length,
+        totalCredits
+      })
+
+      res.json({
+        success: true,
+        data: {
+          totalCredits,
+          keysCount: results.length
+        }
+      })
+    } catch (error) {
+      logger.error('Failed to fetch credit balance', {
+        error: (error as Error).message
+      })
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '获取积分余额失败'
         }
       })
     }

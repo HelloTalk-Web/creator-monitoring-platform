@@ -87,7 +87,7 @@ export const apiKeyRateLimiter = createRateLimiter({
 // 抓取任务速率限制器
 export const scrapeRateLimiter = createRateLimiter({
   windowMs: 60 * 1000, // 1分钟
-  maxRequests: 10, // 每个IP每分钟最多10个抓取请求
+  maxRequests: 60, // 每个IP每分钟最多60个抓取请求（每秒1个）
 })
 
 

@@ -1,3 +1,5 @@
+import { apiKeyService } from '../../../shared/infrastructure/api-key.service'
+
 /**
  * TikTok 爬虫适配器
  * 集成 ScrapeCreators API 进行 TikTok 数据抓取
@@ -6,19 +8,20 @@ export class TikTokAdapter {
   readonly platformName = 'TikTok'
   readonly platformType = 'tiktok' as const
   private baseUrl: string
-  private apiKey?: string
 
   constructor() {
     this.baseUrl = process.env.SCRAPE_CREATORS_BASE_URL || 'https://api.scrapecreators.com'
-    this.apiKey = process.env.SCRAPE_CREATORS_API_KEY
   }
 
   /**
    * 初始化爬虫
    */
   async initialize(): Promise<void> {
-    if (!this.apiKey) {
+    const apiKeyCount = apiKeyService.getApiKeyCount()
+    if (apiKeyCount === 0) {
       console.warn('TikTokAdapter: SCRAPE_CREATORS_API_KEY not configured')
+    } else {
+      console.log(`TikTokAdapter initialized with ${apiKeyCount} API key(s)`)
     }
     console.log(`TikTokAdapter initialized with base URL: ${this.baseUrl}`)
   }
@@ -46,7 +49,7 @@ export class TikTokAdapter {
       const response = await fetch(`${this.baseUrl}/v1/tiktok/profile?${params}`, {
         method: 'GET',
         headers: {
-          'x-api-key': this.apiKey || '',
+          'x-api-key': apiKeyService.getNextApiKey(),
           'Content-Type': 'application/json'
         }
       })
@@ -79,7 +82,7 @@ export class TikTokAdapter {
       const response = await fetch(`${this.baseUrl}/v3/tiktok/profile-videos?${params}`, {
         method: 'GET',
         headers: {
-          'x-api-key': this.apiKey || '',
+          'x-api-key': apiKeyService.getNextApiKey(),
           'Content-Type': 'application/json'
         }
       })
@@ -142,7 +145,7 @@ export class TikTokAdapter {
       const response = await fetch(`${this.baseUrl}/v2/tiktok/video?${params}`, {
         method: 'GET',
         headers: {
-          'x-api-key': this.apiKey || '',
+          'x-api-key': apiKeyService.getNextApiKey(),
           'Content-Type': 'application/json'
         }
       })
@@ -166,4 +169,5 @@ export class TikTokAdapter {
       throw new Error(`Failed to fetch TikTok video info: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
+
 }

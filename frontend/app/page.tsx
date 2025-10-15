@@ -43,6 +43,7 @@ export default function HomePage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [newAccountUrl, setNewAccountUrl] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [totalCredits, setTotalCredits] = useState<number | null>(null)
 
   // 获取账号列表
   const fetchAccounts = async () => {
@@ -105,9 +106,22 @@ export default function HomePage() {
     }
   }
 
+  // 获取积分余额
+  const fetchCreditBalance = async () => {
+    try {
+      const response = await axios.get<ApiResponse<{ totalCredits: number, keysCount: number }>>("/api/scrape/credit-balance")
+      if (response.data.success) {
+        setTotalCredits(response.data.data.totalCredits)
+      }
+    } catch (error) {
+      console.error("获取积分余额失败:", error)
+    }
+  }
+
   // 初始加载
   useEffect(() => {
     fetchAccounts()
+    fetchCreditBalance()
   }, [])
 
   // 搜索
@@ -117,6 +131,25 @@ export default function HomePage() {
 
   return (
     <div className="container mx-auto py-8 px-4">
+      {/* 积分余额显示 */}
+      {totalCredits !== null && (
+        <div className="mb-4">
+          <Card>
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-muted-foreground">剩余积分</div>
+                  <div className="text-2xl font-bold">{totalCredits.toLocaleString()}</div>
+                </div>
+                <Badge variant="outline" className="text-sm">
+                  API 积分
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

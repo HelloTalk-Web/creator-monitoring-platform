@@ -250,15 +250,33 @@ export class ScraperManager {
     const description = (videoRawData.desc || '').substring(0, 1000)
     const videoUrl = video.play_addr?.url_list?.[0] || ''
 
-    // 提取JPEG格式的封面URL（优先使用第3个URL，通常是JPEG格式）
+    // 提取JPEG格式的封面URL
     let thumbnailUrl = ''
-    const coverUrlList = video.cover?.url_list || video.download_addr?.url_list || []
-    if (coverUrlList.length >= 3) {
-      // 第3个URL通常是JPEG格式，浏览器兼容性最好
-      thumbnailUrl = coverUrlList[2]
-    } else if (coverUrlList.length > 0) {
-      // 如果没有第3个URL，使用第一个并尝试转换为JPEG
-      thumbnailUrl = coverUrlList[0].replace(/\.heic\?/i, '.jpeg?')
+    const coverUrlList = video.cover?.url_list || video.dynamic_cover?.url_list || []
+
+    if (coverUrlList.length > 0) {
+      // 遍历所有URL，优先选择JPEG格式
+      const jpegUrl = coverUrlList.find((url: string) =>
+        url.toLowerCase().includes('.jpeg') || url.toLowerCase().includes('.jpg')
+      )
+
+      if (jpegUrl) {
+        // 找到了JPEG格式的URL
+        thumbnailUrl = jpegUrl
+      } else if (coverUrlList.length >= 3) {
+        // 没有明确的JPEG URL，使用第3个URL（通常是JPEG）
+        thumbnailUrl = coverUrlList[2]
+      } else {
+        // 使用第一个URL，并尝试转换为JPEG格式
+        thumbnailUrl = coverUrlList[0].replace(/\.heic(\?|$)/gi, '.jpeg$1')
+      }
+    }
+
+    // 如果还是没有封面，尝试从其他字段获取
+    if (!thumbnailUrl && video.origin_cover?.url_list?.length > 0) {
+      const originCoverList = video.origin_cover.url_list
+      thumbnailUrl = originCoverList[originCoverList.length - 1] || originCoverList[0]
+      thumbnailUrl = thumbnailUrl.replace(/\.heic(\?|$)/gi, '.jpeg$1')
     }
 
     // 从标题中提取hashtag标签
@@ -554,6 +572,7 @@ export class ScraperManager {
       }
     }
   }
+
 }
 
 // 导出单例

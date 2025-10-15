@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { ArrowLeft, Search, Eye, Heart, MessageCircle, Share2, ExternalLink, Flame, Calendar, ChevronDown, X, Download } from "lucide-react"
+import { ArrowLeft, Search, Eye, Heart, MessageCircle, Share2, ExternalLink, Flame, Calendar, ChevronDown, X, Download, RefreshCw } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import axios from "axios"
 import Link from "next/link"
@@ -78,6 +78,9 @@ export default function VideosPage() {
   const [pageSize, setPageSize] = useState(10)
   const [exportingFiltered, setExportingFiltered] = useState(false)
   const [exportingAll, setExportingAll] = useState(false)
+  const [scrapingVideoId, setScrapingVideoId] = useState<number | null>(null)
+  const [selectedVideoIds, setSelectedVideoIds] = useState<number[]>([])
+  const [isBatchScraping, setIsBatchScraping] = useState(false)
 
   // 从视频数据中提取所有唯一标签
   const availableTags = Array.from(
@@ -231,6 +234,102 @@ export default function VideosPage() {
     } finally {
       setExportingAll(false)
     }
+  }
+
+  // 重新抓取单个视频数据
+  const handleScrapeVideo = async (video: Video) => {
+    try {
+      setScrapingVideoId(video.id)
+
+      // 构造视频页面URL
+      const videoUrl = getTikTokVideoUrl(video)
+
+      const response = await axios.post<ApiResponse<{ videoId: string, updated: boolean, message: string }>>(
+        "/api/scrape/update-video",
+        { url: videoUrl }
+      )
+
+      if (response.data.success) {
+        alert(`视频数据已更新: ${response.data.data.message}`)
+        // 重新获取视频列表
+        await fetchVideos()
+      } else {
+        alert(`更新失败: ${response.data.error?.message || '未知错误'}`)
+      }
+    } catch (error: any) {
+      console.error("抓取视频失败:", error)
+      const errorMessage = error.response?.data?.error?.message || error.message || '未知错误'
+      alert(`抓取视频失败: ${errorMessage}`)
+    } finally {
+      setScrapingVideoId(null)
+    }
+  }
+
+  // 批量抓取选中的视频
+  const handleBatchScrape = async () => {
+    if (selectedVideoIds.length === 0) {
+      alert('请先选择要抓取的视频')
+      return
+    }
+
+    if (!confirm(`确定要批量抓取 ${selectedVideoIds.length} 个视频吗？`)) {
+      return
+    }
+
+    setIsBatchScraping(true)
+    let successCount = 0
+    let failCount = 0
+
+    for (const videoId of selectedVideoIds) {
+      const video = videos.find(v => v.id === videoId)
+      if (!video) continue
+
+      try {
+        const videoUrl = getTikTokVideoUrl(video)
+        const response = await axios.post<ApiResponse<{ videoId: string, updated: boolean, message: string }>>(
+          "/api/scrape/update-video",
+          { url: videoUrl }
+        )
+
+        if (response.data.success) {
+          successCount++
+        } else {
+          failCount++
+        }
+      } catch (error) {
+        console.error(`视频 ${video.title} 抓取失败:`, error)
+        failCount++
+      }
+
+      // 添加小延迟避免请求过快
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+
+    setIsBatchScraping(false)
+    setSelectedVideoIds([])
+
+    alert(`批量抓取完成！\n成功: ${successCount} 个\n失败: ${failCount} 个`)
+
+    // 重新获取视频列表
+    await fetchVideos()
+  }
+
+  // 全选/取消全选
+  const handleSelectAll = () => {
+    if (selectedVideoIds.length === videos.length) {
+      setSelectedVideoIds([])
+    } else {
+      setSelectedVideoIds(videos.map(v => v.id))
+    }
+  }
+
+  // 切换单个视频选择
+  const handleToggleVideo = (videoId: number) => {
+    setSelectedVideoIds(prev =>
+      prev.includes(videoId)
+        ? prev.filter(id => id !== videoId)
+        : [...prev, videoId]
+    )
   }
 
   // 格式化数字
@@ -505,29 +604,47 @@ export default function VideosPage() {
             </div>
           </div>
 
-          {/* 导出按钮区域 */}
-          <div className="flex flex-wrap items-center gap-2 pt-4 border-t">
-            <span className="text-sm font-medium text-muted-foreground">导出数据:</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportFiltered}
-              disabled={exportingFiltered || exportingAll}
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" />
-              {exportingFiltered ? "导出中..." : "导出当前筛选"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportAll}
-              disabled={exportingFiltered || exportingAll}
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" />
-              {exportingAll ? "导出中..." : "导出全部"}
-            </Button>
+          {/* 操作按钮区域 */}
+          <div className="flex flex-wrap items-center gap-4 pt-4 border-t">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">批量操作:</span>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleBatchScrape}
+                disabled={isBatchScraping || selectedVideoIds.length === 0}
+                className="gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${isBatchScraping ? 'animate-spin' : ''}`} />
+                {isBatchScraping ? "抓取中..." : `批量抓取${selectedVideoIds.length > 0 ? ` (${selectedVideoIds.length})` : ''}`}
+              </Button>
+            </div>
+
+            <div className="h-4 w-px bg-border" />
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">导出数据:</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportFiltered}
+                disabled={exportingFiltered || exportingAll}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                {exportingFiltered ? "导出中..." : "导出当前筛选"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportAll}
+                disabled={exportingFiltered || exportingAll}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                {exportingAll ? "导出中..." : "导出全部"}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -547,7 +664,14 @@ export default function VideosPage() {
                 <Table className="table-fixed w-full">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[100px] pl-6">封面</TableHead>
+                      <TableHead className="w-[50px] pl-6">
+                        <Checkbox
+                          checked={selectedVideoIds.length === videos.length && videos.length > 0}
+                          onCheckedChange={handleSelectAll}
+                          aria-label="全选"
+                        />
+                      </TableHead>
+                      <TableHead className="w-[100px]">封面</TableHead>
                       <TableHead className="w-[240px]">标题</TableHead>
                       <TableHead className="w-[120px]">发布时间</TableHead>
                       <TableHead className="w-[90px] text-center">播放</TableHead>
@@ -567,8 +691,17 @@ export default function VideosPage() {
                         key={video.id}
                         className="odd:bg-muted/20 hover:bg-muted/40 transition-colors"
                       >
+                        {/* 选择框 */}
+                        <TableCell className="w-[50px] pl-6">
+                          <Checkbox
+                            checked={selectedVideoIds.includes(video.id)}
+                            onCheckedChange={() => handleToggleVideo(video.id)}
+                            aria-label={`选择 ${video.title}`}
+                          />
+                        </TableCell>
+
                         {/* 封面 */}
-                        <TableCell className="w-[100px] pl-6">
+                        <TableCell className="w-[100px]">
                           <div className="relative w-16 h-24 bg-muted rounded overflow-hidden shrink-0">
                             {video.thumbnailUrl ? (
                               <img
@@ -722,16 +855,28 @@ export default function VideosPage() {
 
                         {/* 操作 */}
                         <TableCell className="w-[100px]">
-                          <a
-                            href={getTikTokVideoUrl(video)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Button variant="outline" size="sm">
-                              <ExternalLink className="mr-1 h-3 w-3" />
-                              查看
+                          <div className="flex flex-col gap-1">
+                            <a
+                              href={getTikTokVideoUrl(video)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Button variant="outline" size="sm" className="w-full">
+                                <ExternalLink className="mr-1 h-3 w-3" />
+                                查看
+                              </Button>
+                            </a>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleScrapeVideo(video)}
+                              disabled={scrapingVideoId === video.id}
+                              className="w-full"
+                            >
+                              <RefreshCw className={`mr-1 h-3 w-3 ${scrapingVideoId === video.id ? 'animate-spin' : ''}`} />
+                              {scrapingVideoId === video.id ? '抓取中...' : '抓取'}
                             </Button>
-                          </a>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )

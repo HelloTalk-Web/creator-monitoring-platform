@@ -1,11 +1,10 @@
 import { Router } from 'express'
-import { scrapeRateLimiter } from '../shared/middleware/rateLimiter'
 import scrapersRoutes from '../modules/scrapers/routes'
 
 const router = Router()
 
 // 使用新的爬虫模块路由，保持API兼容性
-router.use('/', scrapeRateLimiter, scrapersRoutes)
+router.use('/', scrapersRoutes)
 
 // 保持原有的任务管理接口占位符
 router.get('/tasks/:taskId', (req, res) => {

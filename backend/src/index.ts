@@ -23,6 +23,7 @@ import { platformRoutes } from './modules/platforms'
 import videoRoutes from './routes/videos'
 import scrapeRoutes from './routes/scrape'
 // import analyticsRoutes from './routes/analytics'  // 暂时注释掉，文件不存在
+import videoMetricsHistoryRoutes from './modules/video-metrics-history/routes'
 
 // 创建Express应用
 const app = express()
@@ -53,6 +54,7 @@ app.use('/api/v1/platforms', platformRoutes)
 // app.use('/api/v1/accounts', accountRoutes)  // 暂时注释掉
 app.use('/api/v1/videos', videoRoutes)
 app.use('/api/v1/scrape', scrapeRoutes)
+app.use('/api/v1/video-metrics-history', videoMetricsHistoryRoutes)
 // app.use('/api/v1/analytics', analyticsRoutes)  // 暂时注释掉
 
 // 根据新的API文档，我们需要支持这些路径：
