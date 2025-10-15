@@ -25,4 +25,10 @@ router.get('/search', apiKeyRateLimiter, videoController.searchVideos.bind(video
 // 获取视频性能指标
 router.get('/:id/metrics', apiKeyRateLimiter, videoController.getVideoMetrics.bind(videoController))
 
+// 导出筛选后的视频列表为Excel
+router.get('/export/filtered', apiKeyRateLimiter, videoController.exportFilteredVideos.bind(videoController))
+
+// 导出全部视频为Excel
+router.get('/export/all', apiKeyRateLimiter, videoController.exportAllVideos.bind(videoController))
+
 export default router

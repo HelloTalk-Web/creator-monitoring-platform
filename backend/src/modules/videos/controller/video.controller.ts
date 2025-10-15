@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { logger } from '../../../shared/utils/logger'
 import { videoService } from '../service/video.service'
+import * as XLSX from 'xlsx'
 import type {
   VideoQueryParams,
   VideosListResponse,
@@ -19,10 +20,10 @@ export class VideoController {
   async getVideos(req: Request, res: Response) {
     try {
       // 处理tags参数：支持单个tag或多个tags（逗号分隔）
-      let tagsParam: string | string[] | undefined = undefined
+      let tagsParam: string[] | undefined = undefined
       if (req.query.tag) {
         // 单个tag参数（从前端tag搜索框）
-        tagsParam = req.query.tag as string
+        tagsParam = [req.query.tag as string]
       } else if (req.query.tags) {
         // 多个tags参数（逗号分隔）
         tagsParam = (req.query.tags as string).split(',')
@@ -395,6 +396,175 @@ export class VideoController {
         }
       })
     }
+  }
+
+  /**
+   * 导出筛选后的视频列表为Excel
+   */
+  async exportFilteredVideos(req: Request, res: Response) {
+    try {
+      // 解析查询参数（与getVideos相同）
+      let tagsParam: string[] | undefined = undefined
+      if (req.query.tag) {
+        tagsParam = [req.query.tag as string]
+      } else if (req.query.tags) {
+        tagsParam = (req.query.tags as string).split(',')
+      }
+
+      const queryParams: VideoQueryParams = {
+        accountId: req.query.accountId ? Number(req.query.accountId) : undefined,
+        platformVideoId: req.query.platformVideoId as string,
+        title: req.query.title as string,
+        tags: tagsParam,
+        publishedAfter: req.query.publishedAfter as string,
+        publishedBefore: req.query.publishedBefore as string,
+        minViewCount: req.query.minViewCount ? Number(req.query.minViewCount) : undefined,
+        maxViewCount: req.query.maxViewCount ? Number(req.query.maxViewCount) : undefined,
+        minLikeCount: req.query.minLikeCount ? Number(req.query.minLikeCount) : undefined,
+        maxLikeCount: req.query.maxLikeCount ? Number(req.query.maxLikeCount) : undefined,
+        sortBy: (req.query.sortBy as any) || 'publishedAt',
+        sortOrder: (req.query.sortOrder as any) || 'desc',
+        page: 1,
+        limit: 10000 // 导出时获取所有匹配的数据
+      }
+
+      // 获取视频数据
+      const result = await videoService.getVideos(queryParams)
+
+      // 生成Excel
+      const excelBuffer = this.generateExcelFromVideos(result.videos)
+
+      // 生成文件名：[创作者名称]_视频数据_2025-10-15.xlsx
+      const accountName = (result.videos[0] as any)?.creatorDisplayName || '视频'
+      const dateStr = new Date().toISOString().split('T')[0]
+      const filename = `${accountName}_视频数据_${dateStr}.xlsx`
+
+      logger.info('Filtered videos exported successfully', {
+        accountId: queryParams.accountId,
+        count: result.videos.length
+      })
+
+      // 设置响应头
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`)
+      res.send(excelBuffer)
+
+    } catch (error) {
+      logger.error('Failed to export filtered videos', {
+        query: req.query,
+        error: (error as Error).message
+      })
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '导出视频列表失败'
+        }
+      })
+    }
+  }
+
+  /**
+   * 导出全部视频为Excel
+   */
+  async exportAllVideos(req: Request, res: Response) {
+    try {
+      const accountId = req.query.accountId ? Number(req.query.accountId) : undefined
+
+      // 获取全部视频数据（不带任何筛选条件）
+      const queryParams: VideoQueryParams = {
+        accountId,
+        page: 1,
+        limit: 10000, // 导出所有数据
+        sortBy: 'publishedAt',
+        sortOrder: 'desc'
+      }
+
+      const result = await videoService.getVideos(queryParams)
+
+      // 生成Excel
+      const excelBuffer = this.generateExcelFromVideos(result.videos)
+
+      // 生成文件名
+      const accountName = (result.videos[0] as any)?.creatorDisplayName || '全部视频'
+      const dateStr = new Date().toISOString().split('T')[0]
+      const filename = `${accountName}_全部视频数据_${dateStr}.xlsx`
+
+      logger.info('All videos exported successfully', {
+        accountId,
+        count: result.videos.length
+      })
+
+      // 设置响应头
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`)
+      res.send(excelBuffer)
+
+    } catch (error) {
+      logger.error('Failed to export all videos', {
+        query: req.query,
+        error: (error as Error).message
+      })
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '导出全部视频失败'
+        }
+      })
+    }
+  }
+
+  /**
+   * 生成Excel文件
+   */
+  private generateExcelFromVideos(videos: any[]): Buffer {
+    // 准备Excel数据
+    const excelData = videos.map(video => ({
+      '视频标题': video.title || '',
+      '视频描述': video.description || '',
+      '创作者': video.creatorDisplayName || '',
+      '平台': video.platformDisplayName || '',
+      '发布时间': video.publishedAt ? new Date(video.publishedAt).toLocaleString('zh-CN') : '',
+      '播放量': Number(video.viewCount) || 0,
+      '点赞数': Number(video.likeCount) || 0,
+      '评论数': Number(video.commentCount) || 0,
+      '分享数': Number(video.shareCount) || 0,
+      '收藏数': Number(video.saveCount) || 0,
+      '标签': Array.isArray(video.tags) ? video.tags.join(', ') : '',
+      '是否热门': (Number(video.viewCount) || 0) > 10000 ? '是' : '否',
+      '视频链接': `https://www.tiktok.com/@${video.creatorUsername}/video/${video.platformVideoId}` || ''
+    }))
+
+    // 创建工作簿和工作表
+    const worksheet = XLSX.utils.json_to_sheet(excelData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, '视频数据')
+
+    // 设置列宽
+    const colWidths = [
+      { wch: 40 },  // 视频标题
+      { wch: 50 },  // 视频描述
+      { wch: 20 },  // 创作者
+      { wch: 12 },  // 平台
+      { wch: 20 },  // 发布时间
+      { wch: 12 },  // 播放量
+      { wch: 12 },  // 点赞数
+      { wch: 12 },  // 评论数
+      { wch: 12 },  // 分享数
+      { wch: 12 },  // 收藏数
+      { wch: 30 },  // 标签
+      { wch: 10 },  // 是否热门
+      { wch: 50 }   // 视频链接
+    ]
+    worksheet['!cols'] = colWidths
+
+    // 生成Excel缓冲区
+    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+
+    return excelBuffer
   }
 }
 

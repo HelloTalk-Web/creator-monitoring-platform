@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { ArrowLeft, Search, Eye, Heart, MessageCircle, Share2, ExternalLink, Flame, Calendar, ChevronDown, X } from "lucide-react"
+import { ArrowLeft, Search, Eye, Heart, MessageCircle, Share2, ExternalLink, Flame, Calendar, ChevronDown, X, Download } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import axios from "axios"
 import Link from "next/link"
@@ -76,6 +76,8 @@ export default function VideosPage() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [pageSize, setPageSize] = useState(10)
+  const [exportingFiltered, setExportingFiltered] = useState(false)
+  const [exportingAll, setExportingAll] = useState(false)
 
   // 从视频数据中提取所有唯一标签
   const availableTags = Array.from(
@@ -145,6 +147,89 @@ export default function VideosPage() {
       fetchVideos()
     } else {
       setAppliedSearch(normalizedQuery)
+    }
+  }
+
+  // 导出当前筛选的视频
+  const handleExportFiltered = async () => {
+    try {
+      setExportingFiltered(true)
+      const response = await axios.get("/api/v1/videos/export/filtered", {
+        params: {
+          accountId,
+          ...(appliedSearch && { title: appliedSearch }),
+          ...(selectedTags.length > 0 && { tags: selectedTags.join(',') }),
+          ...(publishedAfter && { publishedAfter }),
+          ...(publishedBefore && { publishedBefore }),
+          ...(showPopularOnly && { minViewCount: 10000 })
+        },
+        responseType: 'blob'
+      })
+
+      // 创建下载链接
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+
+      // 从响应头中获取文件名,或使用默认文件名
+      const contentDisposition = response.headers['content-disposition']
+      let filename = '视频数据.xlsx'
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?;?/)
+        if (filenameMatch?.[1]) {
+          filename = decodeURIComponent(filenameMatch[1])
+        }
+      }
+
+      link.setAttribute('download', filename)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("导出筛选视频失败:", error)
+      alert("导出失败,请稍后重试")
+    } finally {
+      setExportingFiltered(false)
+    }
+  }
+
+  // 导出全部视频
+  const handleExportAll = async () => {
+    try {
+      setExportingAll(true)
+      const response = await axios.get("/api/v1/videos/export/all", {
+        params: {
+          accountId
+        },
+        responseType: 'blob'
+      })
+
+      // 创建下载链接
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+
+      // 从响应头中获取文件名,或使用默认文件名
+      const contentDisposition = response.headers['content-disposition']
+      let filename = '视频数据.xlsx'
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?;?/)
+        if (filenameMatch?.[1]) {
+          filename = decodeURIComponent(filenameMatch[1])
+        }
+      }
+
+      link.setAttribute('download', filename)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("导出全部视频失败:", error)
+      alert("导出失败,请稍后重试")
+    } finally {
+      setExportingAll(false)
     }
   }
 
@@ -410,6 +495,31 @@ export default function VideosPage() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* 导出按钮区域 */}
+          <div className="flex flex-wrap items-center gap-2 pt-4 border-t">
+            <span className="text-sm font-medium text-muted-foreground">导出数据:</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportFiltered}
+              disabled={exportingFiltered || exportingAll}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              {exportingFiltered ? "导出中..." : "导出当前筛选"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportAll}
+              disabled={exportingFiltered || exportingAll}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              {exportingAll ? "导出中..." : "导出全部"}
+            </Button>
           </div>
         </CardContent>
       </Card>

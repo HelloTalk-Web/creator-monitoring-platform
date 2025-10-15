@@ -350,8 +350,19 @@ export class VideoService {
 
       const totalPages = Math.ceil(total / limit)
 
+      // 转换 BigInt 为 Number
+      const serializedVideos = videoList.map(video => ({
+        ...video,
+        viewCount: video.viewCount ? Number(video.viewCount) : null,
+        likeCount: video.likeCount ? Number(video.likeCount) : null,
+        commentCount: video.commentCount ? Number(video.commentCount) : null,
+        shareCount: video.shareCount ? Number(video.shareCount) : null,
+        saveCount: video.saveCount ? Number(video.saveCount) : null,
+        duration: video.duration ? Number(video.duration) : null
+      }))
+
       return {
-        videos: videoList,
+        videos: serializedVideos,
         pagination: {
           page,
           limit,

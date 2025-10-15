@@ -152,7 +152,7 @@ export class TikTokAdapter {
         throw new Error(`TikTok API error: ${response.status} ${response.statusText} - ${errorText}`)
       }
 
-      const data = await response.json()
+      const data = await response.json() as any
 
       // API返回格式: { success: true, aweme_detail: {...}, credits_remaining: number }
       // 我们需要返回 aweme_detail 部分作为视频数据
