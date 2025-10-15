@@ -291,6 +291,75 @@ export class ScraperController {
   }
 
   /**
+   * 更新单个视频的数据
+   */
+  async updateVideo(req: Request, res: Response) {
+    try {
+      const { url } = req.body
+
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: '视频URL是必需的'
+          }
+        })
+      }
+
+      // 调用爬虫manager更新视频数据
+      const result = await scraperManager.updateVideoByUrl(url)
+
+      logger.info('Video updated successfully', {
+        url,
+        videoId: result.videoId
+      })
+
+      res.json({
+        success: true,
+        message: result.message,
+        data: result
+      })
+    } catch (error) {
+      const errorMessage = (error as Error).message
+
+      logger.error('Failed to update video', {
+        body: req.body,
+        error: errorMessage
+      })
+
+      // 根据错误类型返回不同的状态码
+      if (errorMessage.includes('不存在于数据库中')) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'VIDEO_NOT_FOUND',
+            message: errorMessage
+          }
+        })
+      }
+
+      if (errorMessage.includes('无效的视频URL')) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_URL',
+            message: errorMessage
+          }
+        })
+      }
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '更新视频数据失败'
+        }
+      })
+    }
+  }
+
+  /**
    * URL解析结果
    */
   private parseUrlString(url: string): {

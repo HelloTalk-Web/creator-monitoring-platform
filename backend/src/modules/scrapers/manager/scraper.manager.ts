@@ -410,6 +410,143 @@ export class ScraperManager {
         return ''
     }
   }
+
+  /**
+   * 根据视频URL更新单个视频的数据
+   */
+  async updateVideoByUrl(videoUrl: string): Promise<{
+    videoId: number
+    updated: boolean
+    message: string
+  }> {
+    try {
+      // 1. 从视频URL提取平台和视频ID
+      const parsed = this.parseVideoUrl(videoUrl)
+      if (!parsed.isValid || parsed.platform === 'unknown') {
+        throw new Error('无效的视频URL格式或不支持的平台')
+      }
+
+      logger.info('Updating video from URL', {
+        url: videoUrl,
+        platform: parsed.platform,
+        videoId: parsed.videoId
+      })
+
+      // 2. 从数据库查找视频
+      const existingVideo = await db
+        .select()
+        .from(videos)
+        .where(eq(videos.platformVideoId, parsed.videoId))
+        .limit(1)
+
+      if (existingVideo.length === 0) {
+        throw new Error('视频不存在于数据库中')
+      }
+
+      const video = existingVideo[0]
+
+      // 3. 获取对应平台的爬虫
+      const crawler = await getPlatformCrawler(parsed.platform)
+
+      // 4. 调用爬虫获取最新视频数据
+      const videoRawData = await crawler.getVideoInfo(videoUrl)
+
+      // 5. 提取结构化视频数据
+      const videoData = this.extractVideoData(videoRawData)
+
+      // 6. 更新数据库
+      await db
+        .update(videos)
+        .set({
+          title: videoData.title,
+          description: videoData.description,
+          videoUrl: videoData.videoUrl,
+          thumbnailUrl: videoData.thumbnailUrl,
+          duration: videoData.duration,
+          tags: videoData.tags,
+          viewCount: BigInt(videoData.viewCount),
+          likeCount: BigInt(videoData.likeCount),
+          commentCount: BigInt(videoData.commentCount),
+          shareCount: BigInt(videoData.shareCount),
+          saveCount: BigInt(videoData.saveCount),
+          lastUpdatedAt: new Date(),
+          metadata: videoRawData // 存储原始视频数据
+        })
+        .where(eq(videos.id, video.id))
+
+      logger.info('Video updated successfully', {
+        videoId: video.id,
+        platformVideoId: parsed.videoId,
+        viewCount: videoData.viewCount,
+        likeCount: videoData.likeCount
+      })
+
+      return {
+        videoId: video.id,
+        updated: true,
+        message: '视频数据更新成功'
+      }
+    } catch (error) {
+      logger.error('Failed to update video', {
+        url: videoUrl,
+        error: (error as Error).message
+      })
+      throw error
+    }
+  }
+
+  /**
+   * 从视频URL解析平台和视频ID
+   */
+  private parseVideoUrl(url: string): {
+    platform: 'tiktok' | 'instagram' | 'youtube' | 'unknown'
+    videoId: string
+    isValid: boolean
+  } {
+    try {
+      // TikTok视频URL: https://www.tiktok.com/@username/video/7463250363559218474
+      const tiktokMatch = url.match(/tiktok\.com\/@[^\/]+\/video\/(\d+)/)
+      if (tiktokMatch) {
+        return {
+          platform: 'tiktok',
+          videoId: tiktokMatch[1],
+          isValid: true
+        }
+      }
+
+      // Instagram视频URL: https://www.instagram.com/p/VIDEO_ID/
+      const instagramMatch = url.match(/instagram\.com\/(?:p|reel)\/([^\/\?]+)/)
+      if (instagramMatch) {
+        return {
+          platform: 'instagram',
+          videoId: instagramMatch[1],
+          isValid: true
+        }
+      }
+
+      // YouTube视频URL: https://www.youtube.com/watch?v=VIDEO_ID
+      const youtubeMatch = url.match(/youtube\.com\/watch\?v=([^&]+)/) || url.match(/youtu\.be\/([^?]+)/)
+      if (youtubeMatch) {
+        return {
+          platform: 'youtube',
+          videoId: youtubeMatch[1],
+          isValid: true
+        }
+      }
+
+      return {
+        platform: 'unknown',
+        videoId: '',
+        isValid: false
+      }
+    } catch (error) {
+      return {
+        platform: 'unknown',
+        videoId: '',
+        isValid: false
+      }
+    }
+  }
 }
 
 // 导出单例

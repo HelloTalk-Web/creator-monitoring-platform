@@ -127,4 +127,43 @@ export class TikTokAdapter {
       throw new Error(`Failed to fetch all TikTok videos: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
+
+  /**
+   * 获取单个视频信息（原始数据）
+   * API文档: GET https://api.scrapecreators.com/v2/tiktok/video
+   */
+  async getVideoInfo(videoUrl: string): Promise<any> {
+    try {
+      const params = new URLSearchParams({
+        url: videoUrl,
+        trim: 'false'
+      })
+
+      const response = await fetch(`${this.baseUrl}/v2/tiktok/video?${params}`, {
+        method: 'GET',
+        headers: {
+          'x-api-key': this.apiKey || '',
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`TikTok API error: ${response.status} ${response.statusText} - ${errorText}`)
+      }
+
+      const data = await response.json()
+
+      // API返回格式: { success: true, aweme_detail: {...}, credits_remaining: number }
+      // 我们需要返回 aweme_detail 部分作为视频数据
+      if (!data.success || !data.aweme_detail) {
+        throw new Error(`TikTok API returned error or no video data`)
+      }
+
+      return data.aweme_detail
+    } catch (error) {
+      console.error('Error fetching TikTok video info:', error)
+      throw new Error(`Failed to fetch TikTok video info: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
 }

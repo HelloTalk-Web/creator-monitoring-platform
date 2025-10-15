@@ -17,34 +17,62 @@ export class PlatformController {
   
 
   /**
-   * 创建或更新创作者账号
+   * 创建或更新创作者账号（纯CRUD操作）
+   *
+   * @deprecated 此接口已改为纯CRUD操作，不再触发爬虫
+   * 如果需要抓取创作者数据，请使用爬虫模块的接口：
+   * - POST /api/scrape/profile - 抓取用户资料
+   * - POST /api/scrape/complete - 抓取完整信息（资料+视频）
    */
   async createOrUpdateCreatorAccount(req: Request, res: Response) {
     try {
-      const { platform, identifier, userId } = req.body
+      const {
+        platformId,
+        platformUserId,
+        username,
+        displayName,
+        profileUrl,
+        avatarUrl,
+        bio,
+        followerCount,
+        followingCount,
+        totalVideos,
+        isVerified,
+        userId,
+        metadata
+      } = req.body
 
-      if (!platform || !identifier) {
+      // 验证必需字段
+      if (!platformId || !platformUserId || !username) {
         return res.status(400).json({
           success: false,
           error: {
             code: 'VALIDATION_ERROR',
-            message: '平台和标识符是必需的'
+            message: 'platformId、platformUserId 和 username 是必需的'
           }
         })
       }
 
       const result = await platformManager.createOrUpdateCreatorAccount({
-        platform,
-        identifier,
-        userId
+        platformId,
+        platformUserId,
+        username,
+        displayName,
+        profileUrl,
+        avatarUrl,
+        bio,
+        followerCount,
+        followingCount,
+        totalVideos,
+        isVerified,
+        userId,
+        metadata
       })
 
       logger.info('Creator account processed successfully', {
-        platform,
-        identifier,
         accountId: result.accountId,
         isNew: result.isNew,
-        videosCount: result.videosCount
+        username
       })
 
       res.json({
@@ -66,7 +94,7 @@ export class PlatformController {
       if (errorMessage.includes('not found')) {
         statusCode = 404
         errorCode = 'PLATFORM_NOT_FOUND'
-      } else if (errorMessage.includes('Invalid')) {
+      } else if (errorMessage.includes('Invalid') || errorMessage.includes('required')) {
         statusCode = 400
         errorCode = 'VALIDATION_ERROR'
       }

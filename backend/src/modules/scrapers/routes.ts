@@ -19,4 +19,7 @@ router.post('/complete', apiKeyRateLimiter, scraperController.scrapeComplete.bin
 // 批量抓取
 router.post('/batch', apiKeyRateLimiter, scraperController.batchScrape.bind(scraperController))
 
+// 更新单个视频
+router.post('/update-video', apiKeyRateLimiter, scraperController.updateVideo.bind(scraperController))
+
 export default router

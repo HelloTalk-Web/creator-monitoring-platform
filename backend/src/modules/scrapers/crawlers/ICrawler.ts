@@ -31,6 +31,11 @@ export interface ICrawler {
    * 获取用户视频信息（返回原始API数据）
    */
   getUserVideos(url: string, options?: any): Promise<any[]>
+
+  /**
+   * 获取单个视频信息（返回原始API数据）
+   */
+  getVideoInfo(videoUrl: string): Promise<any>
 }
 
 /**
@@ -55,6 +60,11 @@ export abstract class BaseCrawler implements ICrawler {
    * 获取用户视频信息 - 子类必须实现
    */
   abstract getUserVideos(url: string, options?: any): Promise<any[]>
+
+  /**
+   * 获取单个视频信息 - 子类必须实现
+   */
+  abstract getVideoInfo(videoUrl: string): Promise<any>
 
   /**
    * 从URL提取用户标识符
