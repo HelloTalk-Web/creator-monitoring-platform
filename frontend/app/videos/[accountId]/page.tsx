@@ -407,10 +407,10 @@ export default function VideosPage() {
     <div className="container mx-auto py-8 px-4">
       {/* 返回按钮和账号信息 */}
       <div className="mb-6">
-        <Link href="/">
+        <Link href="/accounts">
           <Button variant="ghost" size="sm" className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            返回账号列表
+            返回账号管理
           </Button>
         </Link>
 

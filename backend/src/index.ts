@@ -26,6 +26,7 @@ import { platformRoutes } from './modules/platforms'
 // import accountRoutes from './routes/accounts'  // 暂时注释掉，文件不存在
 import videoRoutes from './routes/videos'
 import scrapeRoutes from './routes/scrape'
+import dashboardRoutes from './routes/dashboard'
 // import analyticsRoutes from './routes/analytics'  // 暂时注释掉，文件不存在
 import videoMetricsHistoryRoutes from './modules/video-metrics-history/routes'
 
@@ -64,6 +65,7 @@ app.use('/api/v1/video-metrics-history', videoMetricsHistoryRoutes)
 // 根据新的API文档，我们需要支持这些路径：
 app.use('/api/scrape', scrapeRoutes)  // 支持前端调用的 /api/scrape/complete
 app.use('/api/platforms', platformRoutes)  // 支持前端调用的 /api/platforms/accounts
+app.use('/api/dashboard', dashboardRoutes)  // 仪表板统计数据
 
 // 健康检查端点
 app.get('/health', (req, res) => {
