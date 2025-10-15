@@ -521,10 +521,9 @@ export class VideoController {
    * 生成Excel文件
    */
   private generateExcelFromVideos(videos: any[]): Buffer {
-    // 准备Excel数据
+    // 准备Excel数据(TikTok没有单独的description字段,所以只显示title)
     const excelData = videos.map(video => ({
       '视频标题': video.title || '',
-      '视频描述': video.description || '',
       '创作者': video.creatorDisplayName || '',
       '平台': video.platformDisplayName || '',
       '发布时间': video.publishedAt ? new Date(video.publishedAt).toLocaleString('zh-CN') : '',
@@ -545,8 +544,7 @@ export class VideoController {
 
     // 设置列宽
     const colWidths = [
-      { wch: 40 },  // 视频标题
-      { wch: 50 },  // 视频描述
+      { wch: 50 },  // 视频标题
       { wch: 20 },  // 创作者
       { wch: 12 },  // 平台
       { wch: 20 },  // 发布时间
