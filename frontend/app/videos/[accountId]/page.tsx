@@ -266,6 +266,14 @@ export default function VideosPage() {
     return viewCount && viewCount > 10000
   }
 
+  // 构造TikTok视频链接
+  const getTikTokVideoUrl = (video: Video) => {
+    if (account && account.username && video.platformVideoId) {
+      return `https://www.tiktok.com/@${account.username}/video/${video.platformVideoId}`
+    }
+    return video.videoUrl // 降级到原始链接
+  }
+
   const totalPages = total > 0 ? Math.ceil(total / pageSize) : 0
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
   const rangeEnd = total === 0 ? 0 : Math.min(page * pageSize, total)
@@ -715,7 +723,7 @@ export default function VideosPage() {
                         {/* 操作 */}
                         <TableCell className="w-[100px]">
                           <a
-                            href={video.videoUrl}
+                            href={getTikTokVideoUrl(video)}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
