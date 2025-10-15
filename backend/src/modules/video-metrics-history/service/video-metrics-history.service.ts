@@ -278,6 +278,68 @@ export class VideoMetricsHistoryService {
 
     return startDate
   }
+
+  /**
+   * 为指定视频创建历史快照
+   * 从videos表读取当前数据并保存到history表
+   */
+  async createSnapshots(videoIds: number[]): Promise<{
+    successCount: number
+    failedCount: number
+    errors: Array<{ videoId: number; error: string }>
+  }> {
+    let successCount = 0
+    let failedCount = 0
+    const errors: Array<{ videoId: number; error: string }> = []
+
+    for (const videoId of videoIds) {
+      try {
+        // 从videos表获取当前视频数据
+        const videoRecords = await db
+          .select()
+          .from(videos)
+          .where(eq(videos.id, videoId))
+          .limit(1)
+
+        if (videoRecords.length === 0) {
+          throw new Error(`视频 ${videoId} 不存在`)
+        }
+
+        const video = videoRecords[0]
+
+        // 插入历史快照
+        await db.insert(videoMetricsHistory).values({
+          videoId: video.id,
+          viewCount: video.viewCount,
+          likeCount: video.likeCount,
+          commentCount: video.commentCount,
+          shareCount: video.shareCount,
+          saveCount: video.saveCount || BigInt(0),
+          recordedAt: new Date()
+        })
+
+        successCount++
+      } catch (error) {
+        failedCount++
+        errors.push({
+          videoId,
+          error: (error as Error).message
+        })
+        logger.error('Failed to create snapshot for video', {
+          videoId,
+          error: (error as Error).message
+        })
+      }
+    }
+
+    logger.info('Snapshots creation completed', {
+      total: videoIds.length,
+      successCount,
+      failedCount
+    })
+
+    return { successCount, failedCount, errors }
+  }
 }
 
 // 导出单例

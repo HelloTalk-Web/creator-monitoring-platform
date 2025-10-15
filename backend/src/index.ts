@@ -16,6 +16,10 @@ import { errorHandler } from './shared/middleware/errorHandler'
 import { rateLimiter } from './shared/middleware/rateLimiter'
 import { requestLogger } from './shared/middleware/requestLogger'
 
+// 导入事件监听器和调度器
+import { videoHistoryListener } from './modules/video-metrics-history/listeners/video-history.listener'
+import { videoRefreshScheduler } from './shared/scheduler/video-refresh.scheduler'
+
 // 导入路由
 import { userRoutes } from './modules/users'
 import { platformRoutes } from './modules/platforms'
@@ -89,6 +93,21 @@ const PORT = process.env.PORT || 8000
 
 async function startServer() {
   try {
+    // 注册事件监听器
+    videoHistoryListener.register()
+    logger.info('Event listeners registered successfully')
+
+    // 启动定时任务调度器(默认关闭,需要通过环境变量启用)
+    // 设置 ENABLE_AUTO_REFRESH=true 启用自动刷新
+    // 通过 VIDEO_REFRESH_SCHEDULE 配置刷新时间 (默认每天凌晨2点)
+    if (process.env.ENABLE_AUTO_REFRESH === 'true') {
+      const schedule = process.env.VIDEO_REFRESH_SCHEDULE || '0 2 * * *'
+      videoRefreshScheduler.start(schedule)
+      logger.info('Video refresh scheduler started', { schedule })
+    } else {
+      logger.info('Video refresh scheduler is disabled (set ENABLE_AUTO_REFRESH=true to enable)')
+    }
+
     // 启动服务器
     app.listen(PORT, () => {
       logger.info(`Server started successfully`, {
@@ -109,11 +128,13 @@ async function startServer() {
 // 优雅关闭
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully')
+  videoRefreshScheduler.stop()
   process.exit(0)
 })
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully')
+  videoRefreshScheduler.stop()
   process.exit(0)
 })
 

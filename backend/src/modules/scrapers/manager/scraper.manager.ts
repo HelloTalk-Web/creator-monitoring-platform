@@ -3,6 +3,7 @@ import { getPlatformCrawler } from '../crawlers'
 import { creatorAccounts, videos, platforms, type NewCreatorAccount, type NewVideo } from '../../../shared/database/schema'
 import { eq } from 'drizzle-orm'
 import { db } from '../../../shared/database/db'
+import { TrackVideoChanges } from '../../../shared/decorators/track-video-changes.decorator'
 
 /**
  * 爬虫管理器
@@ -165,13 +166,38 @@ export class ScraperManager {
 
   /**
    * 保存视频列表到数据库（处理原始API数据）
+   * 使用装饰器自动追踪视频变化,无需手动触发事件
    */
+  @TrackVideoChanges()
   private async saveVideos(
     videosRawData: any[],
     accountId: number
-  ): Promise<{ newCount: number; updatedCount: number }> {
+  ): Promise<{
+    newCount: number
+    updatedCount: number
+    videoUpdates: Array<{
+      videoId: number
+      oldData: {
+        viewCount: number
+        likeCount: number
+        commentCount: number
+        shareCount: number
+      }
+      newData: {
+        viewCount: number
+        likeCount: number
+        commentCount: number
+        shareCount: number
+      }
+    }>
+  }> {
     let newCount = 0
     let updatedCount = 0
+    const videoUpdates: Array<{
+      videoId: number
+      oldData: any
+      newData: any
+    }> = []
 
     for (const videoRawData of videosRawData) {
       // 提取结构化视频数据
@@ -185,6 +211,9 @@ export class ScraperManager {
         .limit(1)
 
       if (existingVideo.length > 0) {
+        // 保存旧数据用于decorator
+        const oldVideo = existingVideo[0]
+
         // 更新现有视频
         await db
           .update(videos)
@@ -205,6 +234,23 @@ export class ScraperManager {
             metadata: videoRawData // 存储原始视频数据
           })
           .where(eq(videos.id, existingVideo[0].id))
+
+        // 收集变更信息供decorator使用
+        videoUpdates.push({
+          videoId: oldVideo.id,
+          oldData: {
+            viewCount: Number(oldVideo.viewCount),
+            likeCount: Number(oldVideo.likeCount),
+            commentCount: Number(oldVideo.commentCount),
+            shareCount: Number(oldVideo.shareCount)
+          },
+          newData: {
+            viewCount: videoData.viewCount,
+            likeCount: videoData.likeCount,
+            commentCount: videoData.commentCount,
+            shareCount: videoData.shareCount
+          }
+        })
 
         updatedCount++
       } else {
@@ -235,7 +281,7 @@ export class ScraperManager {
       }
     }
 
-    return { newCount, updatedCount }
+    return { newCount, updatedCount, videoUpdates }
   }
 
   /**
@@ -248,7 +294,11 @@ export class ScraperManager {
     // 限制字段长度以符合数据库约束
     const title = (videoRawData.desc || '').substring(0, 500)
     const description = (videoRawData.desc || '').substring(0, 1000)
+
+    // videoUrl: CDN文件地址或播放地址
     const videoUrl = video.play_addr?.url_list?.[0] || ''
+    // pageUrl: 视频页面URL（用于用户访问）
+    const pageUrl = videoRawData.url || ''
 
     // 提取JPEG格式的封面URL
     let thumbnailUrl = ''
@@ -281,9 +331,6 @@ export class ScraperManager {
 
     // 从标题中提取hashtag标签
     const tags = this.extractHashtags(title)
-
-    // 提取TikTok视频页面URL
-    const pageUrl = videoRawData.url || ''
 
     return {
       videoId: videoRawData.aweme_id || '',
@@ -437,11 +484,28 @@ export class ScraperManager {
 
   /**
    * 根据视频URL更新单个视频的数据
+   * 使用装饰器自动追踪视频变化,无需手动触发事件
    */
+  @TrackVideoChanges()
   async updateVideoByUrl(videoUrl: string): Promise<{
     videoId: number
     updated: boolean
     message: string
+    videoUpdates?: Array<{
+      videoId: number
+      oldData: {
+        viewCount: number
+        likeCount: number
+        commentCount: number
+        shareCount: number
+      }
+      newData: {
+        viewCount: number
+        likeCount: number
+        commentCount: number
+        shareCount: number
+      }
+    }>
   }> {
     try {
       // 1. 从视频URL提取平台和视频ID
@@ -506,10 +570,26 @@ export class ScraperManager {
         likeCount: videoData.likeCount
       })
 
+      // 返回变更信息供decorator使用
       return {
         videoId: video.id,
         updated: true,
-        message: '视频数据更新成功'
+        message: '视频数据更新成功',
+        videoUpdates: [{
+          videoId: video.id,
+          oldData: {
+            viewCount: Number(video.viewCount),
+            likeCount: Number(video.likeCount),
+            commentCount: Number(video.commentCount),
+            shareCount: Number(video.shareCount)
+          },
+          newData: {
+            viewCount: videoData.viewCount,
+            likeCount: videoData.likeCount,
+            commentCount: videoData.commentCount,
+            shareCount: videoData.shareCount
+          }
+        }]
       }
     } catch (error) {
       logger.error('Failed to update video', {

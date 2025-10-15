@@ -155,10 +155,10 @@ export class PlatformController {
     try {
       const {
         page = 1,
-        limit = 10,
-        platform,        // 按平台过滤：tiktok, instagram, youtube
+        pageSize = 10,
+        platformName,    // 前端传递的参数名
+        displayName,     // 前端传递的搜索参数
         userId,
-        username,
         sortBy = 'updatedAt',
         sortOrder = 'desc'
       } = req.query
@@ -166,16 +166,16 @@ export class PlatformController {
       // 调用 service 层获取数据，支持平台关联查询
       const result = await platformService.getCreatorAccounts({
         page: Number(page),
-        limit: Number(limit),
-        platform: platform as string,
+        limit: Number(pageSize),
+        platform: platformName as string,
         userId: userId ? Number(userId) : undefined,
-        username: username as string,
+        displayName: displayName as string,
         sortBy: sortBy as any,
         sortOrder: sortOrder as any
       })
 
       logger.info('Creator accounts retrieved successfully', {
-        filters: { platform, userId, username },
+        filters: { platformName, userId, displayName },
         count: result.accounts.length
       })
 

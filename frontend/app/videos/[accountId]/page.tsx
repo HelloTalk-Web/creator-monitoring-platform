@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { ArrowLeft, Search, Eye, Heart, MessageCircle, Share2, ExternalLink, Flame, Calendar, ChevronDown, X, Download, RefreshCw } from "lucide-react"
+import { ArrowLeft, Search, Eye, Heart, MessageCircle, Share2, ExternalLink, Flame, Calendar, ChevronDown, X, Download, RefreshCw, Info } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import axios from "axios"
 import Link from "next/link"
@@ -21,7 +22,8 @@ interface Video {
   title: string
   description: string | null
   thumbnailUrl: string | null  // 后端字段名: thumbnailUrl
-  videoUrl: string
+  videoUrl: string  // CDN文件地址或播放地址
+  pageUrl?: string  // 视频页面URL(用于用户访问)
   publishedAt: string
   tags: string[]  // 标签数组
   viewCount: number | null  // 后端字段名: viewCount
@@ -242,7 +244,7 @@ export default function VideosPage() {
       setScrapingVideoId(video.id)
 
       // 构造视频页面URL
-      const videoUrl = getTikTokVideoUrl(video)
+      const videoUrl = getVideoUrl(video)
 
       const response = await axios.post<ApiResponse<{ videoId: string, updated: boolean, message: string }>>(
         "/api/scrape/update-video",
@@ -250,9 +252,12 @@ export default function VideosPage() {
       )
 
       if (response.data.success) {
-        alert(`视频数据已更新: ${response.data.data.message}`)
         // 重新获取视频列表
         await fetchVideos()
+
+        // 历史快照由后端事件监听器自动保存,无需手动调用
+
+        alert(`视频数据已更新: ${response.data.data.message}`)
       } else {
         alert(`更新失败: ${response.data.error?.message || '未知错误'}`)
       }
@@ -285,7 +290,7 @@ export default function VideosPage() {
       if (!video) continue
 
       try {
-        const videoUrl = getTikTokVideoUrl(video)
+        const videoUrl = getVideoUrl(video)
         const response = await axios.post<ApiResponse<{ videoId: string, updated: boolean, message: string }>>(
           "/api/scrape/update-video",
           { url: videoUrl }
@@ -365,12 +370,33 @@ export default function VideosPage() {
     return viewCount && viewCount > 10000
   }
 
-  // 构造TikTok视频链接
-  const getTikTokVideoUrl = (video: Video) => {
-    if (account && account.username && video.platformVideoId) {
-      return `https://www.tiktok.com/@${account.username}/video/${video.platformVideoId}`
+  // 判断当前账号是否为 YouTube 平台
+  const isYouTubePlatform = () => {
+    return account?.platformName?.toLowerCase() === 'youtube'
+  }
+
+  // 构造视频链接（支持多平台）
+  const getVideoUrl = (video: Video) => {
+    // 优先使用数据库中存储的pageUrl,这是最准确的视频页面链接
+    if (video.pageUrl) {
+      return video.pageUrl
     }
-    return video.videoUrl // 降级到原始链接
+
+    // 降级方案：根据平台类型构造URL
+    if (account && account.username && video.platformVideoId) {
+      const platformName = account.platformName?.toLowerCase()
+
+      switch (platformName) {
+        case 'tiktok':
+          return `https://www.tiktok.com/@${account.username}/video/${video.platformVideoId}`
+        case 'youtube':
+          return `https://www.youtube.com/watch?v=${video.platformVideoId}`
+        default:
+          return video.pageUrl || video.videoUrl || '#'
+      }
+    }
+
+    return video.pageUrl || video.videoUrl || '#'
   }
 
   const totalPages = total > 0 ? Math.ceil(total / pageSize) : 0
@@ -795,10 +821,27 @@ export default function VideosPage() {
 
                         {/* 分享 */}
                         <TableCell className="w-[80px]">
-                          <div className="flex items-center justify-center gap-1 whitespace-nowrap">
-                            <Share2 className="h-4 w-4 text-muted-foreground" />
-                            {formatNumber(video.shareCount)}
-                          </div>
+                          {isYouTubePlatform() && (!video.shareCount || video.shareCount === 0) ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center justify-center gap-1 whitespace-nowrap cursor-help text-muted-foreground">
+                                    <Share2 className="h-4 w-4" />
+                                    <span>N/A</span>
+                                    <Info className="h-3 w-3" />
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">YouTube API 不提供分享数据</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1 whitespace-nowrap">
+                              <Share2 className="h-4 w-4 text-muted-foreground" />
+                              {formatNumber(video.shareCount)}
+                            </div>
+                          )}
                         </TableCell>
 
                         {/* 标签 */}
@@ -857,7 +900,7 @@ export default function VideosPage() {
                         <TableCell className="w-[100px]">
                           <div className="flex flex-col gap-1">
                             <a
-                              href={getTikTokVideoUrl(video)}
+                              href={getVideoUrl(video)}
                               target="_blank"
                               rel="noopener noreferrer"
                             >

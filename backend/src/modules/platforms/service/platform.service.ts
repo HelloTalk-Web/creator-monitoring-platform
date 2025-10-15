@@ -17,6 +17,7 @@ export class PlatformService {
     platform?: string
     userId?: number
     username?: string
+    displayName?: string
     sortBy?: 'createdAt' | 'updatedAt' | 'followerCount' | 'username'
     sortOrder?: 'asc' | 'desc'
   } = {}) {
@@ -26,6 +27,7 @@ export class PlatformService {
       platform,
       userId,
       username,
+      displayName,
       sortBy = 'updatedAt',
       sortOrder = 'desc'
     } = filters
@@ -45,6 +47,10 @@ export class PlatformService {
 
     if (username) {
       conditions.push(like(creatorAccounts.username, `%${username}%`))
+    }
+
+    if (displayName) {
+      conditions.push(like(creatorAccounts.displayName, `%${displayName}%`))
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
