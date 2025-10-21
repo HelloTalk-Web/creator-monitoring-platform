@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -77,6 +77,9 @@ export default function HomePage() {
 
   // 批量导入相关状态
   const [batchUrls, setBatchUrls] = useState("")
+
+  // 防抖相关ref
+  const debounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const [batchResults, setBatchResults] = useState<Array<{ url: string; success: boolean; message: string }>>([])
   const [batchProcessing, setBatchProcessing] = useState(false)
 
@@ -99,7 +102,50 @@ export default function HomePage() {
     }
   }
 
-  // 获取账号列表
+  // 防抖版本的获取账号列表
+  const fetchAccountsDebounced = useCallback(() => {
+    const key = `fetchAccounts-${currentPage}-${platformFilter}-${searchQuery}`
+
+    // 清除之前的定时器
+    const prevTimer = debounceTimers.current.get(key)
+    if (prevTimer) {
+      clearTimeout(prevTimer)
+    }
+
+    // 设置新的防抖定时器
+    const timer = setTimeout(async () => {
+      try {
+        setLoading(true)
+        const response = await axios.get<ApiResponse<{
+          accounts: Account[],
+          pagination: { total: number, page: number, limit: number, totalPages: number }
+        }>>(`${API_BASE_URL}/api/platforms/accounts`, {
+          params: {
+            page: currentPage,
+            pageSize: pageSize,
+            ...(searchQuery && { displayName: searchQuery }),
+            ...(platformFilter !== "all" && { platformName: platformFilter })
+          }
+        })
+
+        if (response.data.success) {
+          setAccounts(response.data.data.accounts)
+          setTotal(response.data.data.pagination.total)
+        }
+      } catch (error) {
+        console.error("获取账号列表失败:", error)
+      } finally {
+        setLoading(false)
+      }
+
+      // 清理定时器引用
+      debounceTimers.current.delete(key)
+    }, 300) // 300ms防抖延迟
+
+    debounceTimers.current.set(key, timer)
+  }, [currentPage, platformFilter, searchQuery, pageSize])
+
+  // 原始版本（供立即调用使用）
   const fetchAccounts = async () => {
     try {
       setLoading(true)
@@ -191,8 +237,8 @@ export default function HomePage() {
 
   // 初始加载和依赖变化时重新加载
   useEffect(() => {
-    fetchAccounts()
-  }, [currentPage, platformFilter])
+    fetchAccountsDebounced()
+  }, [currentPage, platformFilter, fetchAccountsDebounced])
 
   useEffect(() => {
     fetchCreditBalance()
@@ -201,7 +247,7 @@ export default function HomePage() {
   // 搜索
   const handleSearch = () => {
     setCurrentPage(1)
-    fetchAccounts()
+    fetchAccountsDebounced()
   }
 
   // 批量导入账号
@@ -571,4 +617,13 @@ export default function HomePage() {
       </Card>
     </div>
   )
+
+  // 清理防抖定时器
+  useEffect(() => {
+    return () => {
+      // 组件卸载时清除所有定时器
+      debounceTimers.current.forEach(timer => clearTimeout(timer))
+      debounceTimers.current.clear()
+    }
+  }, [])
 }

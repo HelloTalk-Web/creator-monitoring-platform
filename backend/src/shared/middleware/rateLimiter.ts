@@ -81,7 +81,7 @@ export const rateLimiter = createRateLimiter({
 // API速率限制器
 export const apiKeyRateLimiter = createRateLimiter({
   windowMs: 60 * 1000, // 1分钟
-  maxRequests: 100, // 每个IP每分钟最多100个请求
+  maxRequests: 200, // 每个IP每分钟最多200个请求（开发环境放宽）
 })
 
 // 抓取任务速率限制器
