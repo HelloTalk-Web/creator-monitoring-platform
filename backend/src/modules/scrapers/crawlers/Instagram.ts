@@ -86,20 +86,37 @@ export class InstagramAdapter {
     // 如果是post或reel，先获取帖子信息
     const postData = await this.getVideoInfo(url)
 
+    // 从新的API响应结构中提取用户名
+    let username = null
+
+    // 尝试多种可能的数据结构路径
+    if (postData.data?.xdt_shortcode_media?.owner?.username) {
+      username = postData.data.xdt_shortcode_media.owner.username
+    } else if (postData.data?.xdt_shortcode_media?.user?.username) {
+      username = postData.data.xdt_shortcode_media.user.username
+    } else if (postData.owner?.username) {
+      username = postData.owner.username
+    } else if (postData.user?.username) {
+      username = postData.user.username
+    }
+
     console.log(`🔍 Reel数据结构分析:`, {
       url: this.cleanUrl(url),
-      dataType: typeof postData,
-      hasOwner: !!postData.owner,
-      hasOwnerUsername: !!postData.owner?.username,
-      ownerKeys: postData.owner ? Object.keys(postData.owner) : [],
-      postDataKeys: Object.keys(postData),
-      postData: JSON.stringify(postData, null, 2).substring(0, 500) + '...'
+      hasData: !!postData.data,
+      hasXdtMedia: !!postData.data?.xdt_shortcode_media,
+      hasOwner: !!postData.data?.xdt_shortcode_media?.owner,
+      hasUser: !!postData.data?.xdt_shortcode_media?.user,
+      extractedUsername: username,
+      availablePaths: {
+        'data.xdt_shortcode_media.owner.username': !!postData.data?.xdt_shortcode_media?.owner?.username,
+        'data.xdt_shortcode_media.user.username': !!postData.data?.xdt_shortcode_media?.user?.username,
+        'owner.username': !!postData.owner?.username,
+        'user.username': !!postData.user?.username
+      }
     })
 
-    // 从帖子数据中提取用户名
-    const username = postData.owner?.username
     if (!username) {
-      throw new Error(`Cannot extract username from ${identifier.type} data. Available fields: ${Object.keys(postData).join(', ')}`)
+      throw new Error(`Cannot extract username from ${identifier.type} data. API response structure changed.`)
     }
 
     // 构建用户主页URL
