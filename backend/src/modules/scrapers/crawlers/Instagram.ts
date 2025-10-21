@@ -86,10 +86,20 @@ export class InstagramAdapter {
     // 如果是post或reel，先获取帖子信息
     const postData = await this.getVideoInfo(url)
 
+    console.log(`🔍 Reel数据结构分析:`, {
+      url: this.cleanUrl(url),
+      dataType: typeof postData,
+      hasOwner: !!postData.owner,
+      hasOwnerUsername: !!postData.owner?.username,
+      ownerKeys: postData.owner ? Object.keys(postData.owner) : [],
+      postDataKeys: Object.keys(postData),
+      postData: JSON.stringify(postData, null, 2).substring(0, 500) + '...'
+    })
+
     // 从帖子数据中提取用户名
     const username = postData.owner?.username
     if (!username) {
-      throw new Error(`Cannot extract username from ${identifier.type} data`)
+      throw new Error(`Cannot extract username from ${identifier.type} data. Available fields: ${Object.keys(postData).join(', ')}`)
     }
 
     // 构建用户主页URL
