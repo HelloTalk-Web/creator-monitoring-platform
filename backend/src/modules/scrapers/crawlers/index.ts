@@ -5,6 +5,7 @@
 import { ICrawler } from './ICrawler'
 import { TikTokAdapter } from './TikTok'
 import { YouTubeAdapter } from './YouTube'
+import { InstagramAdapter } from './Instagram'
 export { BaseCrawler, type ICrawler } from './ICrawler'
 
 /**
@@ -16,7 +17,7 @@ export function getPlatformCrawler(platform: 'tiktok' | 'instagram' | 'youtube' 
     case 'tiktok':
       return new TikTokAdapter()
     case 'instagram':
-      throw new Error('Instagram crawler not implemented yet')
+      return new InstagramAdapter()  // 直接返回Adapter，统一为直接继承模式
     case 'youtube':
       return new YouTubeAdapter()
     case 'facebook':
@@ -33,7 +34,7 @@ export function getPlatformCrawler(platform: 'tiktok' | 'instagram' | 'youtube' 
 /**
  */
 export function getImplementedPlatforms(): string[] {
-  return ['tiktok', 'youtube']
+  return ['tiktok', 'instagram', 'youtube']
 }
 
 /**

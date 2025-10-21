@@ -1,5 +1,7 @@
 import { logger } from '../../../shared/utils/logger'
 import { getPlatformCrawler } from '../crawlers'
+import { getTransformer } from '../transformers'
+import { dataMapper } from '../transformers/data.mapper'
 import { creatorAccounts, videos, platforms, type NewCreatorAccount, type NewVideo } from '../../../shared/database/schema'
 import { eq } from 'drizzle-orm'
 import { db } from '../../../shared/database/db'
@@ -16,6 +18,7 @@ export class ScraperManager {
   async scrapeAndStoreCreatorAccount(params: {
     url: string
     userId?: number
+    videoLimit?: number
   }): Promise<{
     accountId: number
     isNew: boolean
@@ -23,7 +26,8 @@ export class ScraperManager {
     profile: any
     videosCount: number
   }> {
-    const { url, userId } = params
+    const { url, userId, videoLimit } = params
+    const { limit: maxVideos } = this.normalizeVideoLimit(videoLimit)
 
     // 1. 从URL解析平台和标识符
     const parsed = this.parseUrl(url)
@@ -44,28 +48,37 @@ export class ScraperManager {
     const profileRawData = await crawler.getUserInfo(url)
 
     // 5. 通过爬虫获取用户视频数据（原始数据数组）
-    const videosRawData = await crawler.getUserVideos(url)
+    let videosRawData: any[]
 
-    // 6. 提取结构化数据
-    const { user, stats } = profileRawData
-    const profileData = {
-      username: user?.uniqueId || '',
-      displayName: user?.nickname || '',
-      avatarUrl: user?.avatarLarger || user?.avatarMedium || user?.avatarThumb || '',
-      bio: user?.signature || '',
-      followerCount: stats?.followerCount || 0,
-      followingCount: stats?.followingCount || 0,
-      totalVideos: stats?.videoCount || 0,
-      isVerified: user?.verified || false,
-      externalId: user?.id || user?.uniqueId || '',
-      profileUrl: this.generateProfileUrl(parsed.platform, user?.uniqueId || '')
+    // 如果用户要求的视频数量超过50，使用分页版本
+    if (maxVideos > 50) {
+      videosRawData = await crawler.getAllUserVideos(url, {
+        maxLimit: maxVideos
+      })
+    } else {
+      videosRawData = await crawler.getUserVideos(url, {
+        limit: maxVideos
+      })
     }
 
-    // 7. 检查创作者账号是否已存在
+    // 6. 使用Transformer将原始数据转换为标准格式
+    const transformer = getTransformer(parsed.platform)
+    const standardizedProfile = transformer.transformProfile(profileRawData)
+    const standardizedVideos = videosRawData
+      .slice(0, maxVideos)
+      .map(video => transformer.transformVideo(video))
+
+    // 7. 使用DataMapper将标准格式映射为数据库格式
+    const profileDbMapping = dataMapper.mapProfileToDatabase(standardizedProfile, {
+      userId: typeof userId === 'string' ? 1 : (userId || 1), // 确保是数字类型
+      platformId: platformRecord.id
+    })
+
+    // 8. 检查创作者账号是否已存在
     const existingAccount = await db
       .select()
       .from(creatorAccounts)
-      .where(eq(creatorAccounts.platformUserId, profileData.externalId || profileData.username))
+      .where(eq(creatorAccounts.platformUserId, profileDbMapping.platformUserId))
       .limit(1)
 
     let accountId: number
@@ -78,17 +91,18 @@ export class ScraperManager {
       await db
         .update(creatorAccounts)
         .set({
-          username: profileData.username,
-          displayName: profileData.displayName,
-          avatarUrl: profileData.avatarUrl,
-          bio: profileData.bio,
-          followerCount: BigInt(profileData.followerCount),
-          followingCount: BigInt(profileData.followingCount),
-          totalVideos: profileData.totalVideos,
-          isVerified: profileData.isVerified,
+          username: profileDbMapping.username,
+          displayName: profileDbMapping.displayName,
+          profileUrl: profileDbMapping.profileUrl,
+          avatarUrl: profileDbMapping.avatarUrl,
+          bio: profileDbMapping.bio,
+          followerCount: profileDbMapping.followerCount,
+          followingCount: profileDbMapping.followingCount,
+          totalVideos: profileDbMapping.totalVideos,
+          isVerified: profileDbMapping.isVerified,
           lastScrapedAt: new Date(),
           updatedAt: new Date(),
-          metadata: profileRawData // 存储原始用户数据
+          metadata: profileDbMapping.metadata // 存储原始用户数据
         })
         .where(eq(creatorAccounts.id, accountId))
 
@@ -96,25 +110,25 @@ export class ScraperManager {
         platform: parsed.platform,
         identifier: parsed.identifier,
         accountId,
-        followerCount: profileData.followerCount
+        followerCount: Number(profileDbMapping.followerCount)
       })
     } else {
       // 创建新账号
       const newAccount: NewCreatorAccount = {
-        userId: userId || 1,
-        platformId: platformRecord.id,
-        platformUserId: profileData.externalId || profileData.username,
-        username: profileData.username,
-        displayName: profileData.displayName,
-        profileUrl: profileData.profileUrl,
-        avatarUrl: profileData.avatarUrl,
-        bio: profileData.bio,
-        followerCount: BigInt(profileData.followerCount),
-        followingCount: BigInt(profileData.followingCount),
-        totalVideos: profileData.totalVideos,
-        isVerified: profileData.isVerified,
+        userId: profileDbMapping.userId,
+        platformId: profileDbMapping.platformId,
+        platformUserId: profileDbMapping.platformUserId,
+        username: profileDbMapping.username,
+        displayName: profileDbMapping.displayName,
+        profileUrl: profileDbMapping.profileUrl,
+        avatarUrl: profileDbMapping.avatarUrl,
+        bio: profileDbMapping.bio,
+        followerCount: profileDbMapping.followerCount,
+        followingCount: profileDbMapping.followingCount,
+        totalVideos: profileDbMapping.totalVideos,
+        isVerified: profileDbMapping.isVerified,
         lastScrapedAt: new Date(),
-        metadata: profileRawData // 存储原始用户数据
+        metadata: profileDbMapping.metadata // 存储原始用户数据
       }
 
       const [createdAccount] = await db
@@ -129,14 +143,14 @@ export class ScraperManager {
         platform: parsed.platform,
         identifier: parsed.identifier,
         accountId,
-        followerCount: profileData.followerCount
+        followerCount: Number(profileDbMapping.followerCount)
       })
     }
 
-    // 8. 保存视频数据到数据库
+    // 9. 保存视频数据到数据库
     let videosCount = 0
-    if (videosRawData && videosRawData.length > 0) {
-      const videoResult = await this.saveVideos(videosRawData, accountId)
+    if (standardizedVideos && standardizedVideos.length > 0) {
+      const videoResult = await this.saveStandardizedVideos(standardizedVideos, accountId)
       videosCount = videoResult.newCount + videoResult.updatedCount
 
       logger.info('Videos saved successfully', {
@@ -146,7 +160,7 @@ export class ScraperManager {
       })
     }
 
-    // 9. 更新账号的视频抓取时间
+    // 10. 更新账号的视频抓取时间
     await db
       .update(creatorAccounts)
       .set({
@@ -159,7 +173,7 @@ export class ScraperManager {
       accountId,
       isNew,
       platformId: platformRecord.id,
-      profile: profileData,
+      profile: standardizedProfile,
       videosCount
     }
   }
@@ -274,6 +288,126 @@ export class ScraperManager {
           firstScrapedAt: new Date(),
           lastUpdatedAt: new Date(),
           metadata: videoRawData // 存储原始视频数据
+        }
+
+        await db.insert(videos).values(newVideo)
+        newCount++
+      }
+    }
+
+    return { newCount, updatedCount, videoUpdates }
+  }
+
+  /**
+   * 保存标准化视频数据到数据库（处理StandardizedVideo格式）
+   * 使用装饰器自动追踪视频变化,无需手动触发事件
+   */
+  @TrackVideoChanges()
+  private async saveStandardizedVideos(
+    standardizedVideos: any[],
+    accountId: number
+  ): Promise<{
+    newCount: number
+    updatedCount: number
+    videoUpdates: Array<{
+      videoId: number
+      oldData: {
+        viewCount: number
+        likeCount: number
+        commentCount: number
+        shareCount: number
+      }
+      newData: {
+        viewCount: number
+        likeCount: number
+        commentCount: number
+        shareCount: number
+      }
+    }>
+  }> {
+    let newCount = 0
+    let updatedCount = 0
+    const videoUpdates: Array<{
+      videoId: number
+      oldData: any
+      newData: any
+    }> = []
+
+    for (const standardizedVideo of standardizedVideos) {
+      // 使用DataMapper将标准化视频数据转换为数据库格式
+      const videoDbMapping = dataMapper.mapVideoToDatabase(standardizedVideo, accountId)
+
+      // 检查视频是否已存在
+      const existingVideo = await db
+        .select()
+        .from(videos)
+        .where(eq(videos.platformVideoId, videoDbMapping.platformVideoId))
+        .limit(1)
+
+      if (existingVideo.length > 0) {
+        // 保存旧数据用于decorator
+        const oldVideo = existingVideo[0]
+
+        // 更新现有视频
+        await db
+          .update(videos)
+          .set({
+            title: videoDbMapping.title,
+            description: videoDbMapping.description,
+            videoUrl: videoDbMapping.videoUrl,
+            pageUrl: videoDbMapping.pageUrl,
+            thumbnailUrl: videoDbMapping.thumbnailUrl,
+            duration: videoDbMapping.duration,
+            tags: videoDbMapping.tags,
+            viewCount: videoDbMapping.viewCount,
+            likeCount: videoDbMapping.likeCount,
+            commentCount: videoDbMapping.commentCount,
+            shareCount: videoDbMapping.shareCount,
+            saveCount: videoDbMapping.saveCount,
+            lastUpdatedAt: new Date(),
+            metadata: videoDbMapping.metadata // 存储原始视频数据
+          })
+          .where(eq(videos.id, existingVideo[0].id))
+
+        // 收集变更信息供decorator使用
+        videoUpdates.push({
+          videoId: oldVideo.id,
+          oldData: {
+            viewCount: Number(oldVideo.viewCount),
+            likeCount: Number(oldVideo.likeCount),
+            commentCount: Number(oldVideo.commentCount),
+            shareCount: Number(oldVideo.shareCount)
+          },
+          newData: {
+            viewCount: Number(videoDbMapping.viewCount),
+            likeCount: Number(videoDbMapping.likeCount),
+            commentCount: Number(videoDbMapping.commentCount),
+            shareCount: Number(videoDbMapping.shareCount)
+          }
+        })
+
+        updatedCount++
+      } else {
+        // 创建新视频
+        const newVideo: NewVideo = {
+          accountId: videoDbMapping.accountId,
+          platformVideoId: videoDbMapping.platformVideoId,
+          title: videoDbMapping.title,
+          description: videoDbMapping.description,
+          videoUrl: videoDbMapping.videoUrl,
+          pageUrl: videoDbMapping.pageUrl,
+          thumbnailUrl: videoDbMapping.thumbnailUrl,
+          duration: videoDbMapping.duration,
+          publishedAt: videoDbMapping.publishedAt,
+          tags: videoDbMapping.tags,
+          viewCount: videoDbMapping.viewCount,
+          likeCount: videoDbMapping.likeCount,
+          commentCount: videoDbMapping.commentCount,
+          shareCount: videoDbMapping.shareCount,
+          saveCount: videoDbMapping.saveCount,
+          firstScrapedAt: videoDbMapping.firstScrapedAt || new Date(),
+          lastUpdatedAt: videoDbMapping.lastUpdatedAt || new Date(),
+          metadata: videoDbMapping.metadata // 存储原始视频数据
         }
 
         await db.insert(videos).values(newVideo)
@@ -439,12 +573,46 @@ export class ScraperManager {
         }
       }
 
-      // YouTube用户资料URL: https://www.youtube.com/@username
+      // YouTube URL格式支持
+      // @username: https://www.youtube.com/@username
       const youtubeMatch = url.match(/youtube\.com\/@([^\/\?]+)/)
       if (youtubeMatch) {
         return {
           platform: 'youtube',
           identifier: youtubeMatch[1],
+          type: 'profile',
+          isValid: true
+        }
+      }
+
+      // Channel ID: https://www.youtube.com/channel/UCxxxxxxxxxxxx
+      const youtubeChannelMatch = url.match(/youtube\.com\/channel\/([\w-]+)/)
+      if (youtubeChannelMatch) {
+        return {
+          platform: 'youtube',
+          identifier: youtubeChannelMatch[1],
+          type: 'profile',
+          isValid: true
+        }
+      }
+
+      // Custom URL: https://www.youtube.com/c/customname
+      const youtubeCustomMatch = url.match(/youtube\.com\/c\/([\w.-]+)/)
+      if (youtubeCustomMatch) {
+        return {
+          platform: 'youtube',
+          identifier: youtubeCustomMatch[1],
+          type: 'profile',
+          isValid: true
+        }
+      }
+
+      // Video URLs (will be handled by adapter): shorts, watch, youtu.be
+      const youtubeVideoMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/)
+      if (youtubeVideoMatch) {
+        return {
+          platform: 'youtube',
+          identifier: youtubeVideoMatch[1],
           type: 'profile',
           isValid: true
         }
@@ -651,6 +819,29 @@ export class ScraperManager {
         isValid: false
       }
     }
+  }
+
+  /**
+   * 规范化抓取视频数量，避免异常值
+   */
+  private normalizeVideoLimit(limit?: number): { limit: number } {
+    const DEFAULT_LIMIT = Number(process.env.DEFAULT_SCRAPE_VIDEO_LIMIT || 100)
+    const MAX_LIMIT = Number(process.env.MAX_SCRAPE_VIDEO_LIMIT || 1000)
+
+    if (limit === undefined || limit === null) {
+      return { limit: DEFAULT_LIMIT }
+    }
+
+    if (typeof limit !== 'number' || Number.isNaN(limit)) {
+      return { limit: DEFAULT_LIMIT }
+    }
+
+    const normalized = Math.floor(limit)
+    if (normalized <= 0) {
+      return { limit: DEFAULT_LIMIT }
+    }
+
+    return { limit: Math.min(normalized, MAX_LIMIT) }
   }
 
 }

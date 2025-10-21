@@ -46,10 +46,16 @@ export class TikTokAdapter {
     try {
       const params = new URLSearchParams({ handle: username })
 
+      const apiKey = await apiKeyService.getNextApiKeyWithCredits()
+
+      if (!apiKey) {
+        throw new Error('No available API key with credits')
+      }
+
       const response = await fetch(`${this.baseUrl}/v1/tiktok/profile?${params}`, {
         method: 'GET',
         headers: {
-          'x-api-key': apiKeyService.getNextApiKey(),
+          'x-api-key': apiKey,
           'Content-Type': 'application/json'
         }
       })
@@ -79,10 +85,16 @@ export class TikTokAdapter {
         trim: 'false'
       })
 
+      const apiKey = await apiKeyService.getNextApiKeyWithCredits()
+
+      if (!apiKey) {
+        throw new Error('No available API key with credits')
+      }
+
       const response = await fetch(`${this.baseUrl}/v3/tiktok/profile-videos?${params}`, {
         method: 'GET',
         headers: {
-          'x-api-key': apiKeyService.getNextApiKey(),
+          'x-api-key': apiKey,
           'Content-Type': 'application/json'
         }
       })
@@ -142,10 +154,16 @@ export class TikTokAdapter {
         trim: 'false'
       })
 
+      const apiKey = await apiKeyService.getNextApiKeyWithCredits()
+
+      if (!apiKey) {
+        throw new Error('No available API key with credits')
+      }
+
       const response = await fetch(`${this.baseUrl}/v2/tiktok/video?${params}`, {
         method: 'GET',
         headers: {
-          'x-api-key': apiKeyService.getNextApiKey(),
+          'x-api-key': apiKey,
           'Content-Type': 'application/json'
         }
       })

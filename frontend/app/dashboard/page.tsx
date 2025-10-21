@@ -1,13 +1,10 @@
-"use client"
-
-import { useEffect, useState } from "react"
 import axios from "axios"
 import { StatCard } from "@/components/dashboard/stat-card"
 import { TrendingVideos } from "@/components/dashboard/trending-videos"
 import { RecentVideos } from "@/components/dashboard/recent-videos"
 import { PlatformDistribution } from "@/components/dashboard/platform-distribution"
-import { Users, Video, Eye, ThumbsUp, RefreshCw } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Users, Video, Eye, ThumbsUp } from "lucide-react"
+import { RefreshButton } from "./refresh-button"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
 
@@ -37,57 +34,56 @@ interface VideoData {
   platformDisplayName: string
 }
 
-export default function DashboardPage() {
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [stats, setStats] = useState<DashboardStats>({
-    totalAccounts: 0,
-    totalVideos: 0,
-    totalViews: 0,
-    totalLikes: 0
-  })
-  const [platforms, setPlatforms] = useState<PlatformStats[]>([])
-  const [trendingVideos, setTrendingVideos] = useState<VideoData[]>([])
-  const [recentVideos, setRecentVideos] = useState<VideoData[]>([])
+/**
+ * 获取 Dashboard 数据 (服务端)
+ */
+async function getDashboardData() {
+  try {
+    // 使用并行请求获取所有数据
+    const [statsResponse, trendingResponse, recentResponse] = await Promise.all([
+      axios.get(`${API_BASE_URL}/api/dashboard/stats`),
+      axios.get(`${API_BASE_URL}/api/dashboard/trending-videos`, {
+        params: { limit: 5 }
+      }),
+      axios.get(`${API_BASE_URL}/api/dashboard/recent-videos`, {
+        params: { limit: 5 }
+      })
+    ])
 
-  const fetchDashboardData = async () => {
-    try {
-      setRefreshing(true)
-
-      // 使用并行请求获取所有数据
-      const [statsResponse, trendingResponse, recentResponse] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/dashboard/stats`),
-        axios.get(`${API_BASE_URL}/api/dashboard/trending-videos`, {
-          params: { limit: 5 }
-        }),
-        axios.get(`${API_BASE_URL}/api/dashboard/recent-videos`, {
-          params: { limit: 5 }
-        })
-      ])
-
-      // 设置统计数据
-      const statsData = statsResponse.data.data
-      setStats(statsData.stats)
-      setPlatforms(statsData.platforms)
-
-      // 设置热门视频
-      setTrendingVideos(trendingResponse.data.data.videos || [])
-
-      // 设置最新视频
-      setRecentVideos(recentResponse.data.data.videos || [])
-
-      setLoading(false)
-    } catch (error) {
-      console.error("Failed to fetch dashboard data:", error)
-      setLoading(false)
-    } finally {
-      setRefreshing(false)
+    return {
+      stats: statsResponse.data.data.stats as DashboardStats,
+      platforms: statsResponse.data.data.platforms as PlatformStats[],
+      trendingVideos: trendingResponse.data.data.videos as VideoData[] || [],
+      recentVideos: recentResponse.data.data.videos as VideoData[] || []
+    }
+  } catch (error) {
+    console.error("Failed to fetch dashboard data:", error)
+    // 返回默认数据
+    return {
+      stats: {
+        totalAccounts: 0,
+        totalVideos: 0,
+        totalViews: 0,
+        totalLikes: 0
+      },
+      platforms: [],
+      trendingVideos: [],
+      recentVideos: []
     }
   }
+}
 
-  useEffect(() => {
-    fetchDashboardData()
-  }, [])
+/**
+ * Dashboard 页面 (SSR)
+ *
+ * 改为服务端渲染,使得:
+ * 1. AI 爬虫能够获取完整的 HTML
+ * 2. 通过 middleware 自动转换为 Markdown
+ * 3. SEO 友好
+ */
+export default async function DashboardPage() {
+  // 在服务端获取数据
+  const { stats, platforms, trendingVideos, recentVideos } = await getDashboardData()
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) {
@@ -99,22 +95,14 @@ export default function DashboardPage() {
     return num.toLocaleString()
   }
 
-  const renderContent = () => (
-    <>
+  return (
+    <div className="mx-auto max-w-[1600px] space-y-6 px-6 py-8">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold">数据看板</h1>
           <p className="text-muted-foreground mt-1">实时监控创作者数据和视频表现</p>
         </div>
-        <Button
-          onClick={fetchDashboardData}
-          disabled={refreshing}
-          variant="outline"
-          size="sm"
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          刷新数据
-        </Button>
+        <RefreshButton />
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -148,20 +136,6 @@ export default function DashboardPage() {
 
         <TrendingVideos videos={trendingVideos} />
       </div>
-    </>
-  )
-
-  if (loading) {
-    return (
-      <div className="mx-auto flex min-h-[60vh] max-w-[1600px] items-center justify-center px-6 py-8">
-        <div className="text-muted-foreground">加载中...</div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="mx-auto max-w-[1600px] space-y-6 px-6 py-8">
-      {renderContent()}
     </div>
   )
 }

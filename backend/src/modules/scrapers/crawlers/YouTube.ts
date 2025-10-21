@@ -88,74 +88,39 @@ export class YouTubeAdapter {
     this.apiKey = process.env.YOUTUBE_API_KEY || ''
   }
 
-  /**
-   * 将 YouTube 频道数据转换为标准格式(兼容 TikTok 格式)
-   */
-  private transformChannelData(channelData: YouTubeChannelResponse['items'][0]): any {
-    // 获取customUrl并确保不包含@符号(与TikTok格式保持一致)
-    let uniqueId = channelData.snippet.customUrl || channelData.id
-    // 如果customUrl包含@符号,移除它
-    if (uniqueId.startsWith('@')) {
-      uniqueId = uniqueId.substring(1)
-    }
-
-    return {
-      user: {
-        id: channelData.id,
-        uniqueId: uniqueId,
-        nickname: channelData.snippet.title,
-        avatarLarger: channelData.snippet.thumbnails.high?.url || channelData.snippet.thumbnails.medium?.url,
-        avatarMedium: channelData.snippet.thumbnails.medium?.url || channelData.snippet.thumbnails.default?.url,
-        avatarThumb: channelData.snippet.thumbnails.default?.url,
-        signature: channelData.snippet.description,
-        verified: false // YouTube API 不直接提供此信息
-      },
-      stats: {
-        followerCount: Number(channelData.statistics.subscriberCount),
-        followingCount: 0, // YouTube 没有关注数概念
-        videoCount: Number(channelData.statistics.videoCount)
-      }
-    }
-  }
+  // 数据转换逻辑已移除，现在由YouTubeTransformer处理
+// 这样保持了与TikTok相同的设计模式：
+// Adapter: 获取原始API数据
+// Transformer: 负责数据转换
 
   /**
-   * 将 YouTube 视频数据转换为标准格式(兼容 TikTok 格式)
+   * 从视频ID提取频道ID
    */
-  private transformVideoData(videoData: YouTubeVideosResponse['items'][0]): any {
-    // 解析 ISO 8601 duration (PT1M30S -> 90秒)
-    const durationMatch = videoData.contentDetails.duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
-    const hours = durationMatch?.[1] ? parseInt(durationMatch[1]) : 0
-    const minutes = durationMatch?.[2] ? parseInt(durationMatch[2]) : 0
-    const seconds = durationMatch?.[3] ? parseInt(durationMatch[3]) : 0
-    const durationInSeconds = hours * 3600 + minutes * 60 + seconds
+  private async extractChannelIdFromVideo(videoId: string): Promise<string> {
+    const apiUrl = `${this.baseUrl}/videos?part=snippet&id=${videoId}&key=${this.apiKey}`
 
-    return {
-      aweme_id: videoData.id,
-      desc: videoData.snippet.title,
-      create_time: Math.floor(new Date(videoData.snippet.publishedAt).getTime() / 1000),
-      url: `https://www.youtube.com/watch?v=${videoData.id}`,
-      video: {
-        duration: durationInSeconds * 1000, // 转换为毫秒以兼容 TikTok 格式
-        cover: {
-          url_list: [
-            videoData.snippet.thumbnails.maxres?.url,
-            videoData.snippet.thumbnails.high?.url,
-            videoData.snippet.thumbnails.medium?.url
-          ].filter(Boolean)
-        },
-        play_addr: {
-          url_list: [`https://www.youtube.com/watch?v=${videoData.id}`]
-        }
-      },
-      statistics: {
-        play_count: Number(videoData.statistics.viewCount || 0),
-        digg_count: Number(videoData.statistics.likeCount || 0),
-        comment_count: Number(videoData.statistics.commentCount || 0),
-        share_count: 0, // YouTube API 不提供分享数
-        collect_count: 0 // YouTube API 不提供收藏数
-      }
+    const response = await fetch(apiUrl)
+
+    if (!response.ok) {
+      throw new Error(`Failed to get video info: ${response.status}`)
     }
+
+    const data = await response.json()
+
+    if (!data.items || data.items.length === 0) {
+      throw new Error('Video not found')
+    }
+
+    const channelId = data.items[0].snippet.channelId
+    if (!channelId) {
+      throw new Error('Channel ID not found in video data')
+    }
+
+    return channelId
   }
+
+  // 视频数据转换逻辑也已移除，现在由YouTubeTransformer处理
+// 保持设计一致性：Adapter只负责获取原始API数据
 
   /**
    * 初始化爬虫
@@ -174,20 +139,10 @@ export class YouTubeAdapter {
    * - https://www.youtube.com/@handle
    * - https://www.youtube.com/channel/CHANNEL_ID
    * - https://www.youtube.com/c/CustomName
-   *
-   * 不支持视频URL,需要提供频道URL
+   * - https://youtube.com/shorts/VIDEO_ID (提取频道)
+   * - https://www.youtube.com/watch?v=VIDEO_ID (提取频道)
    */
   private extractChannelIdentifier(url: string): { type: 'handle' | 'channelId' | 'videoUrl' | 'url', value: string } {
-    // 先检查是否是视频URL - 这些不被支持
-    const isVideoUrl =
-      url.match(/youtube\.com\/watch\?v=/) ||
-      url.match(/youtube\.com\/shorts\//) ||
-      url.match(/youtu\.be\//)
-
-    if (isVideoUrl) {
-      return { type: 'videoUrl', value: url }
-    }
-
     // Handle format: @username
     const handleMatch = url.match(/youtube\.com\/@([\w.-]+)/)
     if (handleMatch) {
@@ -200,6 +155,18 @@ export class YouTubeAdapter {
       return { type: 'channelId', value: channelIdMatch[1] }
     }
 
+    // Custom URL format: /c/customname
+    const customMatch = url.match(/youtube\.com\/c\/([\w.-]+)/)
+    if (customMatch) {
+      return { type: 'handle', value: customMatch[1] } // Treat as handle for API
+    }
+
+    // Video URL formats - we'll extract the channel ID from video info
+    const videoMatch = url.match(/(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]+)/)
+    if (videoMatch) {
+      return { type: 'videoUrl', value: url } as any
+    }
+
     // 如果无法解析，直接使用完整URL
     return { type: 'url', value: url }
   }
@@ -207,6 +174,7 @@ export class YouTubeAdapter {
   /**
    * 获取用户信息（原始数据）
    * 使用 YouTube Data API v3 channels endpoint
+   * 直接返回YouTube Data API的原始数据，由YouTubeTransformer处理转换
    */
   async getUserInfo(url: string): Promise<any> {
     const identifier = this.extractChannelIdentifier(url)
@@ -215,7 +183,14 @@ export class YouTubeAdapter {
       let apiUrl: string
 
       if (identifier.type === 'videoUrl') {
-        throw new Error('请提供YouTube频道URL而不是视频URL。支持的格式: https://www.youtube.com/@用户名 或 https://www.youtube.com/channel/频道ID')
+        // 从视频URL提取频道ID
+        const videoMatch = identifier.value.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/)
+        const videoId = videoMatch ? videoMatch[1] : null
+        if (!videoId) {
+          throw new Error('无法从视频URL提取视频ID')
+        }
+        const channelId = await this.extractChannelIdFromVideo(videoId)
+        apiUrl = `${this.baseUrl}/channels?part=snippet,statistics,contentDetails&id=${channelId}&key=${this.apiKey}`
       } else if (identifier.type === 'handle') {
         // 使用 forHandle 参数
         apiUrl = `${this.baseUrl}/channels?part=snippet,statistics,contentDetails&forHandle=${identifier.value}&key=${this.apiKey}`
@@ -239,8 +214,9 @@ export class YouTubeAdapter {
         throw new Error('Channel not found')
       }
 
-      // 转换为标准格式后返回
-      return this.transformChannelData(data.items[0])
+      // 直接返回YouTube Data API的原始数据
+      // 由YouTubeTransformer负责数据转换
+      return data.items[0]
     } catch (error) {
       console.error('Error fetching YouTube channel info:', error)
       throw new Error(`Failed to fetch YouTube channel info: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -249,6 +225,7 @@ export class YouTubeAdapter {
 
   /**
    * 获取用户视频数据（原始数据，返回数组以兼容 manager）
+   * 直接返回YouTube Data API的原始数据，由YouTubeTransformer处理转换
    */
   async getUserVideos(url: string, options: { limit?: number; pageToken?: string } = {}): Promise<any[]> {
     const { limit = 50 } = options
@@ -258,26 +235,37 @@ export class YouTubeAdapter {
       const identifier = this.extractChannelIdentifier(url)
       let channelId: string
 
+      console.log(`🔍 解析URL: ${url}`)
+      console.log(`📋 标识符类型: ${identifier.type}, 值: ${identifier.value}`)
+
       if (identifier.type === 'videoUrl') {
-        throw new Error('请提供YouTube频道URL而不是视频URL。支持的格式: https://www.youtube.com/@用户名 或 https://www.youtube.com/channel/频道ID')
+        // 从视频URL提取频道ID
+        const videoMatch = identifier.value.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/)
+        const videoId = videoMatch ? videoMatch[1] : null
+        if (!videoId) {
+          throw new Error('无法从视频URL提取视频ID')
+        }
+                channelId = await this.extractChannelIdFromVideo(videoId)
       } else if (identifier.type === 'handle') {
         // 使用 forHandle 参数获取频道ID
         const apiUrl = `${this.baseUrl}/channels?part=id&forHandle=${identifier.value}&key=${this.apiKey}`
-        const response = await fetch(apiUrl)
+                const response = await fetch(apiUrl)
         if (!response.ok) {
-          throw new Error(`YouTube API error: ${response.status}`)
+          const errorText = await response.text()
+          throw new Error(`YouTube API error: ${response.status} - ${errorText}`)
         }
         const data = await response.json() as YouTubeChannelResponse
         if (!data.items || data.items.length === 0) {
           throw new Error('Channel not found')
         }
-        channelId = data.items[0].id
+        channelId = data.items[0].snippet.channelId
       } else if (identifier.type === 'channelId') {
         channelId = identifier.value
       } else {
         throw new Error('无效的YouTube URL格式。请提供频道URL,如: https://www.youtube.com/@用户名')
       }
 
+      
       // 使用 search endpoint 获取视频列表
       let apiUrl = `${this.baseUrl}/search?part=snippet&channelId=${channelId}&order=date&type=video&maxResults=${limit}&key=${this.apiKey}`
 
@@ -285,6 +273,7 @@ export class YouTubeAdapter {
         apiUrl += `&pageToken=${options.pageToken}`
       }
 
+      
       const response = await fetch(apiUrl)
 
       if (!response.ok) {
@@ -297,6 +286,8 @@ export class YouTubeAdapter {
       // 获取视频ID列表
       const videoIds = data.items.map(item => item.id.videoId).filter(Boolean)
 
+      console.log(`📹 找到 ${videoIds.length} 个视频ID: ${videoIds.slice(0, 3).join(', ')}${videoIds.length > 3 ? '...' : ''}`)
+
       if (videoIds.length === 0) {
         return []
       }
@@ -304,10 +295,9 @@ export class YouTubeAdapter {
       // 批量获取视频详细信息（包含统计数据）
       const videosData = await this.getVideosDetails(videoIds)
 
-      // 转换为标准格式并直接返回数组
-      const transformedVideos = videosData.map(video => this.transformVideoData(video))
-
-      return transformedVideos
+      // 直接返回YouTube Data API的原始数据
+      // 由YouTubeTransformer负责数据转换
+      return videosData
     } catch (error) {
       console.error('Error fetching YouTube videos:', error)
       throw new Error(`Failed to fetch YouTube videos: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -322,40 +312,125 @@ export class YouTubeAdapter {
       // YouTube API 支持一次请求最多50个视频
       const apiUrl = `${this.baseUrl}/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${this.apiKey}`
 
+            
       const response = await fetch(apiUrl)
 
       if (!response.ok) {
         const errorText = await response.text()
+        console.error(`❌ YouTube videos API 失败: ${response.status} - ${errorText}`)
         throw new Error(`YouTube API error: ${response.status} ${response.statusText} - ${errorText}`)
       }
 
       const data = await response.json() as YouTubeVideosResponse
+
+      console.log(`✅ 成功获取 ${data.items?.length || 0} 个视频的详细信息`)
+
       return data.items || []
     } catch (error) {
-      console.error('Error fetching videos details:', error)
+      console.error('❌ Error fetching videos details:', error)
       throw new Error(`Failed to fetch videos details: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
   /**
    * 获取用户所有视频数据（自动分页获取）
-   * 注意: getUserVideos 现在直接返回数组,所以这里需要多次调用来实现分页
+   * 实现真正的YouTube API分页功能
    */
   async getAllUserVideos(url: string, options: { maxLimit?: number } = {}): Promise<any[]> {
-    const { maxLimit } = options
+    const { maxLimit = 200 } = options // 默认最多获取200个视频
     const allVideos: any[] = []
     let pageToken: string | undefined = undefined
+    let pageCount = 0
 
-    console.log('🔄 开始获取 YouTube 频道所有视频数据')
+    console.log(`🔄 开始获取 YouTube 频道所有视频数据 (最多 ${maxLimit} 个)`)
 
     try {
-      // 注意: 由于 getUserVideos 已经简化为返回数组
-      // 这里我们只获取一次数据 (默认50个视频)
-      const videos = await this.getUserVideos(url, { limit: maxLimit || 50 })
+      // 先获取频道ID
+      const identifier = this.extractChannelIdentifier(url)
+      let channelId: string
 
-      console.log(`✅ 获取到 ${videos.length} 个视频`)
+      if (identifier.type === 'videoUrl') {
+        const videoMatch = identifier.value.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/)
+        const videoId = videoMatch ? videoMatch[1] : null
+        if (!videoId) {
+          throw new Error('无法从视频URL提取视频ID')
+        }
+        channelId = await this.extractChannelIdFromVideo(videoId)
+      } else if (identifier.type === 'handle') {
+        const apiUrl = `${this.baseUrl}/channels?part=id&forHandle=${identifier.value}&key=${this.apiKey}`
+        const response = await fetch(apiUrl)
+        if (!response.ok) {
+          throw new Error(`YouTube API error: ${response.status}`)
+        }
+        const data = await response.json() as YouTubeChannelResponse
+        if (!data.items || data.items.length === 0) {
+          throw new Error('Channel not found')
+        }
+        channelId = data.items[0].snippet.channelId
+      } else if (identifier.type === 'channelId') {
+        channelId = identifier.value
+      } else {
+        throw new Error('无效的YouTube URL格式')
+      }
 
-      return videos
+      console.log(`✅ 获取频道ID: ${channelId}`)
+
+      // 循环获取所有页的视频数据
+      do {
+        pageCount++
+        
+        // 构建API URL
+        let apiUrl = `${this.baseUrl}/search?part=snippet&channelId=${channelId}&order=date&type=video&maxResults=50&key=${this.apiKey}`
+
+        if (pageToken) {
+          apiUrl += `&pageToken=${pageToken}`
+        }
+
+        
+        const response = await fetch(apiUrl)
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`YouTube API error: ${response.status} ${response.statusText} - ${errorText}`)
+        }
+
+        const data = await response.json() as YouTubeSearchResponse
+
+        if (!data.items || data.items.length === 0) {
+          console.log('📭 没有更多视频数据')
+          break
+        }
+
+        // 获取当前页的视频ID列表
+        const videoIds = data.items.map(item => item.id.videoId).filter(Boolean)
+        
+        if (videoIds.length === 0) {
+          break
+        }
+
+        // 获取视频详细信息
+        const videosData = await this.getVideosDetails(videoIds)
+        allVideos.push(...videosData)
+
+        
+        // 检查是否达到最大限制
+        if (allVideos.length >= maxLimit) {
+                    allVideos.splice(maxLimit) // 截取到指定数量
+          break
+        }
+
+        // 获取下一页的令牌
+        pageToken = data.nextPageToken
+
+        if (!pageToken) {
+          console.log('🏁 已获取所有视频数据')
+        } else {
+          console.log(`➡️ 还有下一页数据，继续获取...`)
+        }
+
+      } while (pageToken && allVideos.length < maxLimit)
+
+      
+      return allVideos
     } catch (error) {
       console.error('❌ 获取所有视频数据失败:', error)
       throw new Error(`Failed to fetch all YouTube videos: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -364,6 +439,7 @@ export class YouTubeAdapter {
 
   /**
    * 获取单个视频信息（原始数据）
+   * 直接返回YouTube Data API的原始数据，由YouTubeTransformer处理转换
    */
   async getVideoInfo(videoUrl: string): Promise<any> {
     try {
@@ -390,8 +466,9 @@ export class YouTubeAdapter {
         throw new Error('Video not found')
       }
 
-      // 转换为标准格式后返回
-      return this.transformVideoData(data.items[0])
+      // 直接返回YouTube Data API的原始数据
+      // 由YouTubeTransformer负责数据转换
+      return data.items[0]
     } catch (error) {
       console.error('Error fetching YouTube video info:', error)
       throw new Error(`Failed to fetch YouTube video info: ${error instanceof Error ? error.message : 'Unknown error'}`)

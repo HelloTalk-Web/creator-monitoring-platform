@@ -713,13 +713,13 @@
         },
         "video_url": {
           "name": "video_url",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
         "thumbnail_url": {
           "name": "thumbnail_url",
-          "type": "varchar(500)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },

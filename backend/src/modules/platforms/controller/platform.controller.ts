@@ -110,6 +110,42 @@ export class PlatformController {
   }
 
   /**
+   * 获取所有平台列表
+   */
+  async getPlatforms(req: Request, res: Response) {
+    try {
+      const { isActive } = req.query
+
+      const platforms = await platformService.getPlatforms({
+        isActive: isActive !== undefined ? Boolean(isActive) : true
+      })
+
+      logger.info('Platforms retrieved successfully', {
+        count: platforms.length,
+        filters: { isActive }
+      })
+
+      res.json({
+        success: true,
+        data: platforms
+      })
+    } catch (error) {
+      logger.error('Failed to get platforms', {
+        query: req.query,
+        error: (error as Error).message
+      })
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '获取平台列表失败'
+        }
+      })
+    }
+  }
+
+  /**
    * 解析URL并识别平台和用户
    */
   async parseUrl(req: Request, res: Response) {

@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getDisplayImageUrl } from "@/lib/utils"
 
 interface Account {
   id: number
@@ -31,6 +32,21 @@ interface Account {
   platformDisplayName: string
 }
 
+interface Platform {
+  id: number
+  name: string
+  displayName: string
+  baseUrl: string
+  urlPattern: string
+  colorCode: string
+  iconUrl: string | null
+  rateLimit: number
+  supportedFeatures: string[]
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 interface ApiResponse<T> {
   success: boolean
   data: T
@@ -39,6 +55,9 @@ interface ApiResponse<T> {
     message: string
   }
 }
+
+const VIDEO_LIMIT_OPTIONS = [10, 20, 30, 50, 100, 200, 300, 500]
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
 
 export default function HomePage() {
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -50,8 +69,11 @@ export default function HomePage() {
   const [pageSize] = useState(20)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [newAccountUrl, setNewAccountUrl] = useState("")
+  const [videoLimit, setVideoLimit] = useState<string>("auto")
   const [submitting, setSubmitting] = useState(false)
   const [totalCredits, setTotalCredits] = useState<number | null>(null)
+  const [platforms, setPlatforms] = useState<Platform[]>([])
+  const [platformsLoading, setPlatformsLoading] = useState(true)
 
   // 批量导入相关状态
   const [batchUrls, setBatchUrls] = useState("")
@@ -61,6 +83,22 @@ export default function HomePage() {
   // 计算总页数
   const totalPages = Math.ceil(total / pageSize)
 
+  // 获取平台列表
+  const fetchPlatforms = async () => {
+    try {
+      setPlatformsLoading(true)
+      const response = await axios.get<ApiResponse<Platform[]>>(`${API_BASE_URL}/api/platforms`)
+
+      if (response.data.success) {
+        setPlatforms(response.data.data)
+      }
+    } catch (error) {
+      console.error("获取平台列表失败:", error)
+    } finally {
+      setPlatformsLoading(false)
+    }
+  }
+
   // 获取账号列表
   const fetchAccounts = async () => {
     try {
@@ -68,7 +106,7 @@ export default function HomePage() {
       const response = await axios.get<ApiResponse<{
         accounts: Account[],
         pagination: { total: number, page: number, limit: number, totalPages: number }
-      }>>("/api/platforms/accounts", {
+      }>>(`${API_BASE_URL}/api/platforms/accounts`, {
         params: {
           page: currentPage,
           pageSize: pageSize,
@@ -94,9 +132,16 @@ export default function HomePage() {
 
     try {
       setSubmitting(true)
-      const response = await axios.post<ApiResponse<{ accountId: number, videoCount: number }>>("/api/scrape/complete", {
-        url: newAccountUrl
-      })
+      const limitValue = videoLimit === "auto" ? undefined : Number(videoLimit)
+      const payload: Record<string, unknown> = { url: newAccountUrl }
+      if (limitValue !== undefined && !Number.isNaN(limitValue)) {
+        payload.videoLimit = limitValue
+      }
+
+      const response = await axios.post<ApiResponse<{ accountId: number, videosCount: number }>>(
+        `${API_BASE_URL}/api/scrape/complete`,
+        payload
+      )
 
       if (response.data.success) {
         setDialogOpen(false)
@@ -116,7 +161,7 @@ export default function HomePage() {
     if (!confirm("确定要删除这个账号吗?")) return
 
     try {
-      const response = await axios.delete<ApiResponse<null>>(`/api/platforms/accounts/${id}`)
+      const response = await axios.delete<ApiResponse<null>>(`${API_BASE_URL}/api/platforms/accounts/${id}`)
 
       if (response.data.success) {
         fetchAccounts()
@@ -130,7 +175,7 @@ export default function HomePage() {
   // 获取积分余额
   const fetchCreditBalance = async () => {
     try {
-      const response = await axios.get<ApiResponse<{ totalCredits: number, keysCount: number }>>("/api/scrape/credit-balance")
+      const response = await axios.get<ApiResponse<{ totalCredits: number, keysCount: number }>>(`${API_BASE_URL}/api/scrape/credit-balance`)
       if (response.data.success) {
         setTotalCredits(response.data.data.totalCredits)
       }
@@ -138,6 +183,11 @@ export default function HomePage() {
       console.error("获取积分余额失败:", error)
     }
   }
+
+  // 初始加载平台列表
+  useEffect(() => {
+    fetchPlatforms()
+  }, [])
 
   // 初始加载和依赖变化时重新加载
   useEffect(() => {
@@ -172,18 +222,25 @@ export default function HomePage() {
     setBatchResults([])
 
     const results: Array<{ url: string; success: boolean; message: string }> = []
+    const limitValue = videoLimit === "auto" ? undefined : Number(videoLimit)
 
     for (const url of urls) {
       try {
-        const response = await axios.post<ApiResponse<{ accountId: number, videoCount: number }>>("/api/scrape/complete", {
-          url: url
-        })
+        const payload: Record<string, unknown> = { url }
+        if (limitValue !== undefined && !Number.isNaN(limitValue)) {
+          payload.videoLimit = limitValue
+        }
+
+        const response = await axios.post<ApiResponse<{ accountId: number, videosCount: number }>>(
+          `${API_BASE_URL}/api/scrape/complete`,
+          payload
+        )
 
         if (response.data.success) {
           results.push({
             url,
             success: true,
-            message: `成功添加,导入了 ${response.data.data.videoCount} 个视频`
+            message: `成功添加,导入了 ${response.data.data.videosCount || 0} 个视频`
           })
         } else {
           results.push({
@@ -259,6 +316,25 @@ export default function HomePage() {
                           onChange={(e) => setNewAccountUrl(e.target.value)}
                         />
                       </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="video-limit">抓取视频数量</Label>
+                        <Select value={videoLimit} onValueChange={setVideoLimit}>
+                          <SelectTrigger id="video-limit" className="w-[200px]">
+                            <SelectValue placeholder="选择抓取数量" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">自动 (最多 100 条)</SelectItem>
+                            {VIDEO_LIMIT_OPTIONS.map((option) => (
+                              <SelectItem key={option} value={String(option)}>
+                                前 {option} 条视频
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          系统将同步 {videoLimit === "auto" ? "最近最多 100 条视频" : `最近的 ${videoLimit} 条视频`} 数据
+                        </p>
+                      </div>
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={() => setDialogOpen(false)}>
@@ -283,6 +359,25 @@ export default function HomePage() {
                         />
                         <p className="text-xs text-muted-foreground">
                           支持 TikTok、YouTube、抖音等平台URL,每行一个
+                        </p>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="batch-video-limit">抓取视频数量</Label>
+                        <Select value={videoLimit} onValueChange={setVideoLimit}>
+                          <SelectTrigger id="batch-video-limit" className="w-[200px]">
+                            <SelectValue placeholder="选择抓取数量" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">自动 (最多 100 条)</SelectItem>
+                            {VIDEO_LIMIT_OPTIONS.map((option) => (
+                              <SelectItem key={option} value={String(option)}>
+                                前 {option} 条视频
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          批量导入时，每个账号将同步 {videoLimit === "auto" ? "最近最多 100 条视频" : `最近的 ${videoLimit} 条视频`}
                         </p>
                       </div>
 
@@ -345,10 +440,11 @@ export default function HomePage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部平台</SelectItem>
-                <SelectItem value="tiktok">TikTok</SelectItem>
-                <SelectItem value="youtube">YouTube</SelectItem>
-                <SelectItem value="douyin">抖音</SelectItem>
-                <SelectItem value="xiaohongshu">小红书</SelectItem>
+                {!platformsLoading && platforms.map((platform) => (
+                  <SelectItem key={platform.id} value={platform.name}>
+                    {platform.displayName}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -395,7 +491,7 @@ export default function HomePage() {
                           <div className="flex items-center gap-3">
                             {account.avatarUrl && (
                               <img
-                                src={account.avatarUrl}
+                                src={getDisplayImageUrl(account.avatarUrl) ?? account.avatarUrl}
                                 alt={account.displayName}
                                 className="w-10 h-10 rounded-full"
                               />

@@ -4,6 +4,9 @@ import { platformController } from './controller/platform.controller'
 
 const router = Router()
 
+// 平台相关接口
+// 获取所有平台列表
+router.get('/', apiKeyRateLimiter, platformController.getPlatforms.bind(platformController))
 
 // 创作者账号相关接口
 // 获取创作者账号列表

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import db from '../shared/database/db'
-import { creatorAccounts, videos } from '../shared/database/schema'
-import { sql, count, sum } from 'drizzle-orm'
+import { creatorAccounts, videos, platforms } from '../shared/database/schema'
+import { sql, count, sum, desc, eq } from 'drizzle-orm'
 import { logger } from '../shared/utils/logger'
 
 const router = Router()
@@ -40,16 +40,18 @@ router.get('/stats', async (req: Request, res: Response) => {
     // 获取平台分布
     const platformDistribution = await db
       .select({
-        platformName: sql`COALESCE(p.display_name, p.name)`.as('platformName'),
+        platformName: sql<string>`COALESCE(${platforms.displayName}, ${platforms.name})`,
+        platformColor: platforms.colorCode,
         count: count()
       })
       .from(creatorAccounts)
-      .leftJoin(sql`platforms p`, sql`p.id = ${creatorAccounts.platformId}`)
-      .groupBy(sql`COALESCE(p.display_name, p.name)`)
+      .leftJoin(platforms, eq(platforms.id, creatorAccounts.platformId))
+      .groupBy(platforms.displayName, platforms.name, platforms.colorCode)
 
-    const platforms = platformDistribution.map(p => ({
+    const platformsData = platformDistribution.map(p => ({
       platformName: String(p.platformName || 'Unknown'),
-      count: Number(p.count)
+      count: Number(p.count),
+      color: p.platformColor || '#1890ff'
     }))
 
     res.json({
@@ -61,7 +63,7 @@ router.get('/stats', async (req: Request, res: Response) => {
           totalViews,
           totalLikes
         },
-        platforms
+        platforms: platformsData
       }
     })
   } catch (error) {
@@ -99,13 +101,13 @@ router.get('/trending-videos', async (req: Request, res: Response) => {
         commentCount: videos.commentCount,
         publishedAt: videos.publishedAt,
         duration: videos.duration,
-        creatorDisplayName: sql`a.display_name`.as('creatorDisplayName'),
-        platformDisplayName: sql`COALESCE(p.display_name, p.name)`.as('platformDisplayName')
+        creatorDisplayName: creatorAccounts.displayName,
+        platformDisplayName: sql<string>`COALESCE(${platforms.displayName}, ${platforms.name})`
       })
       .from(videos)
-      .leftJoin(sql`creator_accounts a`, sql`a.id = ${videos.accountId}`)
-      .leftJoin(sql`platforms p`, sql`p.id = a.platform_id`)
-      .orderBy(sql`${videos.viewCount} DESC NULLS LAST`)
+      .leftJoin(creatorAccounts, eq(creatorAccounts.id, videos.accountId))
+      .leftJoin(platforms, eq(platforms.id, creatorAccounts.platformId))
+      .orderBy(desc(videos.viewCount))
       .limit(limit)
 
     res.json({
@@ -152,13 +154,13 @@ router.get('/recent-videos', async (req: Request, res: Response) => {
         pageUrl: videos.pageUrl,
         publishedAt: videos.publishedAt,
         duration: videos.duration,
-        creatorDisplayName: sql`a.display_name`.as('creatorDisplayName'),
-        platformDisplayName: sql`COALESCE(p.display_name, p.name)`.as('platformDisplayName')
+        creatorDisplayName: creatorAccounts.displayName,
+        platformDisplayName: sql<string>`COALESCE(${platforms.displayName}, ${platforms.name})`
       })
       .from(videos)
-      .leftJoin(sql`creator_accounts a`, sql`a.id = ${videos.accountId}`)
-      .leftJoin(sql`platforms p`, sql`p.id = a.platform_id`)
-      .orderBy(sql`${videos.publishedAt} DESC NULLS LAST`)
+      .leftJoin(creatorAccounts, eq(creatorAccounts.id, videos.accountId))
+      .leftJoin(platforms, eq(platforms.id, creatorAccounts.platformId))
+      .orderBy(desc(videos.publishedAt))
       .limit(limit)
 
     res.json({

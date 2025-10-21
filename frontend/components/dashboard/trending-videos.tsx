@@ -1,6 +1,9 @@
+"use client"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, ThumbsUp, MessageCircle } from "lucide-react"
 import Image from "next/image"
+import { getDisplayImageUrl } from "@/lib/utils"
 
 interface Video {
   id: number
@@ -59,7 +62,7 @@ export function TrendingVideos({ videos }: TrendingVideosProps) {
                   <div className="w-24 h-16 bg-muted rounded overflow-hidden relative">
                     {video.thumbnailUrl ? (
                       <Image
-                        src={video.thumbnailUrl}
+                        src={getDisplayImageUrl(video.thumbnailUrl) ?? video.thumbnailUrl}
                         alt={video.title}
                         fill
                         className="object-cover"
@@ -76,7 +79,7 @@ export function TrendingVideos({ videos }: TrendingVideosProps) {
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-medium line-clamp-2 mb-1">
+                  <h4 className="text-sm font-medium line-clamp-2 break-all mb-1">
                     {video.title}
                   </h4>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">

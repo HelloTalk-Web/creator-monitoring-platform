@@ -43,6 +43,63 @@ export class ApiKeyService {
   }
 
   /**
+   * 获取有足够积分的API密钥
+   * 优先返回有积分的API Key，如果没有可用Key则返回空字符串
+   */
+  async getApiKeyWithCredits(): Promise<string> {
+    this.initializeApiKeys()
+
+    if (!this.apiKeys || this.apiKeys.length === 0) {
+      return ''
+    }
+
+    // 获取所有API Key的积分余额
+    const balances = await this.getCreditBalance()
+
+    // 找到有积分的API Key
+    for (const apiKey of this.apiKeys) {
+      const balance = balances.find(b => b.apiKey === this.maskApiKey(apiKey))
+      if (balance && balance.creditCount > 0) {
+        return apiKey
+      }
+    }
+
+    // 如果没有找到有积分的Key，返回空字符串
+    return ''
+  }
+
+  /**
+   * 获取下一个有足够积分的API密钥
+   * 从当前索引开始查找，找到有积分的Key并更新索引
+   */
+  async getNextApiKeyWithCredits(): Promise<string> {
+    this.initializeApiKeys()
+
+    if (!this.apiKeys || this.apiKeys.length === 0) {
+      return ''
+    }
+
+    // 获取所有API Key的积分余额
+    const balances = await this.getCreditBalance()
+
+    // 从当前索引开始查找，最多循环一圈
+    for (let i = 0; i < this.apiKeys.length; i++) {
+      const keyIndex = (this.currentKeyIndex + i) % this.apiKeys.length
+      const apiKey = this.apiKeys[keyIndex]
+
+      const balance = balances.find(b => b.apiKey === this.maskApiKey(apiKey))
+      if (balance && balance.creditCount > 0) {
+        // 更新当前索引到下一个位置
+        this.currentKeyIndex = (keyIndex + 1) % this.apiKeys.length
+        return apiKey
+      }
+    }
+
+    // 如果没有找到有积分的Key，返回空字符串
+    return ''
+  }
+
+  /**
    * 获取所有API密钥
    */
   getAllApiKeys(): string[] {

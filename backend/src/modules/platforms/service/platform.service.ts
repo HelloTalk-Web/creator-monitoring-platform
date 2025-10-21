@@ -246,6 +246,41 @@ export class PlatformService {
   }
 
   /**
+   * 获取所有平台列表
+   */
+  async getPlatforms(filters: {
+    isActive?: boolean
+  } = {}) {
+    try {
+      const { isActive = true } = filters
+
+      const platformList = await db
+        .select({
+          id: platforms.id,
+          name: platforms.name,
+          displayName: platforms.displayName,
+          baseUrl: platforms.baseUrl,
+          urlPattern: platforms.urlPattern,
+          colorCode: platforms.colorCode,
+          iconUrl: platforms.iconUrl,
+          rateLimit: platforms.rateLimit,
+          supportedFeatures: platforms.supportedFeatures,
+          isActive: platforms.isActive,
+          createdAt: platforms.createdAt,
+          updatedAt: platforms.updatedAt
+        })
+        .from(platforms)
+        .where(isActive ? eq(platforms.isActive, true) : undefined)
+        .orderBy(platforms.displayName)
+
+      return platformList
+    } catch (error) {
+      logger.error('Failed to get platforms', { filters, error })
+      throw new Error('获取平台列表失败')
+    }
+  }
+
+  /**
    * 删除创作者账号
    */
   async deleteCreatorAccount(id: number) {

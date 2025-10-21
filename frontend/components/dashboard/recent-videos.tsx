@@ -1,6 +1,9 @@
+"use client"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Clock } from "lucide-react"
 import Image from "next/image"
+import { getDisplayImageUrl } from "@/lib/utils"
 
 interface Video {
   id: number
@@ -73,7 +76,7 @@ export function RecentVideos({ videos }: RecentVideosProps) {
                   <div className="w-32 h-20 bg-muted rounded overflow-hidden relative">
                     {video.thumbnailUrl ? (
                       <Image
-                        src={video.thumbnailUrl}
+                        src={getDisplayImageUrl(video.thumbnailUrl) ?? video.thumbnailUrl}
                         alt={video.title}
                         fill
                         className="object-cover"
@@ -92,7 +95,7 @@ export function RecentVideos({ videos }: RecentVideosProps) {
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-medium line-clamp-2 mb-1">
+                  <h4 className="text-sm font-medium line-clamp-2 break-all mb-1">
                     {video.title}
                   </h4>
                   <div className="flex flex-col gap-1 text-xs text-muted-foreground">

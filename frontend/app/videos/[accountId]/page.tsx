@@ -14,6 +14,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import axios from "axios"
 import Link from "next/link"
 import { useParams } from "next/navigation"
+import { getDisplayImageUrl } from "@/lib/utils"
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
 
 interface Video {
   id: number
@@ -96,7 +99,7 @@ export default function VideosPage() {
   const fetchAccount = async () => {
     try {
       const response = await axios.get<ApiResponse<{ account: Account }>>(
-        `/api/platforms/accounts/${accountId}`
+        `${API_BASE_URL}/api/platforms/accounts/${accountId}`
       )
 
       if (response.data.success && response.data.data.account) {
@@ -111,7 +114,7 @@ export default function VideosPage() {
   const fetchVideos = async () => {
     try {
       setLoading(true)
-      const response = await axios.get<ApiResponse<{ videos: Video[], total: number }>>("/api/v1/videos", {
+      const response = await axios.get<ApiResponse<{ videos: Video[], total: number }>>(`${API_BASE_URL}/api/v1/videos`, {
         params: {
           accountId,
           page,
@@ -159,7 +162,7 @@ export default function VideosPage() {
   const handleExportFiltered = async () => {
     try {
       setExportingFiltered(true)
-      const response = await axios.get("/api/v1/videos/export/filtered", {
+      const response = await axios.get(`${API_BASE_URL}/api/v1/videos/export/filtered`, {
         params: {
           accountId,
           ...(appliedSearch && { title: appliedSearch }),
@@ -203,7 +206,7 @@ export default function VideosPage() {
   const handleExportAll = async () => {
     try {
       setExportingAll(true)
-      const response = await axios.get("/api/v1/videos/export/all", {
+      const response = await axios.get(`${API_BASE_URL}/api/v1/videos/export/all`, {
         params: {
           accountId
         },
@@ -247,7 +250,7 @@ export default function VideosPage() {
       const videoUrl = getVideoUrl(video)
 
       const response = await axios.post<ApiResponse<{ videoId: string, updated: boolean, message: string }>>(
-        "/api/scrape/update-video",
+        `${API_BASE_URL}/api/scrape/update-video`,
         { url: videoUrl }
       )
 
@@ -292,7 +295,7 @@ export default function VideosPage() {
       try {
         const videoUrl = getVideoUrl(video)
         const response = await axios.post<ApiResponse<{ videoId: string, updated: boolean, message: string }>>(
-          "/api/scrape/update-video",
+          `${API_BASE_URL}/api/scrape/update-video`,
           { url: videoUrl }
         )
 
@@ -421,7 +424,7 @@ export default function VideosPage() {
                 <div className="flex items-center gap-4">
                   {account.avatarUrl && (
                     <img
-                      src={account.avatarUrl}
+                      src={getDisplayImageUrl(account.avatarUrl) ?? account.avatarUrl}
                       alt={account.displayName}
                       className="w-16 h-16 rounded-full border border-border object-cover"
                     />
@@ -731,16 +734,45 @@ export default function VideosPage() {
                           <div className="relative w-16 h-24 bg-muted rounded overflow-hidden shrink-0">
                             {video.thumbnailUrl ? (
                               <img
-                                src={video.thumbnailUrl}
+                                src={getDisplayImageUrl(video.thumbnailUrl) ?? video.thumbnailUrl}
                                 alt={video.title}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
-                                  e.currentTarget.style.display = 'none'
+                                  // 图片加载失败时的处理
+                                  const target = e.currentTarget
+                                  const container = target.parentElement
+                                  if (container) {
+                                    // 隐藏失败的图片，显示占位符
+                                    target.style.display = 'none'
+                                    const placeholder = document.createElement('div')
+                                    placeholder.className = 'w-full h-full flex items-center justify-center text-xs text-muted-foreground bg-muted'
+                                    placeholder.innerHTML = `
+                                      <div class="text-center">
+                                        <div class="text-lg mb-1">📷</div>
+                                        <div>图片加载失败</div>
+                                        <div class="text-xs opacity-70 mt-1">Instagram限制</div>
+                                      </div>
+                                    `
+                                    container.appendChild(placeholder)
+                                  }
+                                }}
+                                onLoad={(e) => {
+                                  // 图片加载成功，确保占位符被移除
+                                  const container = e.currentTarget.parentElement
+                                  if (container) {
+                                    const placeholder = container.querySelector('div.bg-muted')
+                                    if (placeholder) {
+                                      placeholder.remove()
+                                    }
+                                  }
                                 }}
                               />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
-                                无封面
+                              <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground bg-muted">
+                                <div className="text-center">
+                                  <div className="text-lg mb-1">📷</div>
+                                  <div>无封面</div>
+                                </div>
                               </div>
                             )}
                             {isPopular && (
@@ -760,11 +792,11 @@ export default function VideosPage() {
                         <TableCell className="w-[240px] align-top">
                           <div className="flex items-start gap-2">
                             <div className="relative flex-1 group" tabIndex={0}>
-                              <span className="font-medium whitespace-normal break-words line-clamp-3">
+                              <span className="font-medium whitespace-normal break-all line-clamp-3">
                                 {video.title}
                               </span>
                               <div
-                                className="absolute left-0 top-full z-20 mt-1 hidden w-[30rem] rounded-md border bg-popover p-3 text-sm text-popover-foreground shadow-lg whitespace-normal break-words group-hover:block group-focus-within:block cursor-text"
+                                  className="absolute left-0 top-full z-20 mt-1 hidden w-[30rem] rounded-md border bg-popover p-3 text-sm text-popover-foreground shadow-lg whitespace-normal break-all group-hover:block group-focus-within:block cursor-text"
                                 role="tooltip"
                               >
                                 {video.title}

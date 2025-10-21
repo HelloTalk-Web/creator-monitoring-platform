@@ -33,6 +33,11 @@ export interface ICrawler {
   getUserVideos(url: string, options?: any): Promise<any[]>
 
   /**
+   * 获取用户所有视频数据（自动分页获取）
+   */
+  getAllUserVideos?(url: string, options?: { maxLimit?: number }): Promise<any[]>
+
+  /**
    * 获取单个视频信息（返回原始API数据）
    */
   getVideoInfo(videoUrl: string): Promise<any>

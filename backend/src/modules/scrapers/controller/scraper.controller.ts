@@ -3,6 +3,39 @@ import { logger } from '../../../shared/utils/logger'
 import { scraperManager } from '../manager/scraper.manager'
 import { apiKeyService } from '../../../shared/infrastructure/api-key.service'
 
+function serializeBigInt(value: unknown): any {
+  if (typeof value === 'bigint') {
+    return Number(value)
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(item => serializeBigInt(item))
+  }
+
+  if (value && typeof value === 'object') {
+    const serialized: Record<string, any> = {}
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      serialized[key] = serializeBigInt(val)
+    }
+    return serialized
+  }
+
+  return value
+}
+
+function parseVideoLimit(input: unknown): number | undefined {
+  if (input === undefined || input === null || input === '') {
+    return undefined
+  }
+
+  const parsed = Number(input)
+  if (Number.isNaN(parsed)) {
+    return undefined
+  }
+
+  return parsed
+}
+
 /**
  * 爬虫控制器 - 处理数据抓取相关的HTTP请求
  */
@@ -58,7 +91,7 @@ export class ScraperController {
    */
   async scrapeProfile(req: Request, res: Response) {
     try {
-      const { url, userId } = req.body
+      const { url, userId, videoLimit } = req.body
 
       if (!url) {
         return res.status(400).json({
@@ -84,7 +117,8 @@ export class ScraperController {
       // 调用爬虫manager进行数据抓取
       const result = await scraperManager.scrapeAndStoreCreatorAccount({
         url,
-        userId
+        userId,
+        videoLimit: parseVideoLimit(videoLimit)
       })
 
       logger.info('Profile scraped successfully', {
@@ -99,7 +133,7 @@ export class ScraperController {
       res.json({
         success: true,
         message: result.isNew ? '账号创建并抓取成功' : '账号更新并抓取成功',
-        data: result
+        data: serializeBigInt(result)
       })
     } catch (error) {
       logger.error('Failed to scrape profile', {
@@ -122,7 +156,8 @@ export class ScraperController {
    */
   async scrapeVideos(req: Request, res: Response) {
     try {
-      const { url, userId, limit } = req.body
+      const { url, userId, limit, videoLimit } = req.body
+      const effectiveVideoLimit = parseVideoLimit(videoLimit ?? limit)
 
       if (!url) {
         return res.status(400).json({
@@ -148,7 +183,8 @@ export class ScraperController {
       // 调用爬虫manager进行数据抓取（包含视频）
       const result = await scraperManager.scrapeAndStoreCreatorAccount({
         url,
-        userId
+        userId,
+        videoLimit: effectiveVideoLimit
       })
 
       logger.info('Videos scraped successfully', {
@@ -162,7 +198,7 @@ export class ScraperController {
       res.json({
         success: true,
         message: `成功抓取 ${result.videosCount} 个视频`,
-        data: result
+        data: serializeBigInt(result)
       })
     } catch (error) {
       logger.error('Failed to scrape videos', {
@@ -185,7 +221,7 @@ export class ScraperController {
    */
   async scrapeComplete(req: Request, res: Response) {
     try {
-      const { url, userId } = req.body
+      const { url, userId, videoLimit } = req.body
 
       if (!url) {
         return res.status(400).json({
@@ -211,7 +247,8 @@ export class ScraperController {
       // 调用爬虫manager进行完整数据抓取
       const result = await scraperManager.scrapeAndStoreCreatorAccount({
         url,
-        userId
+        userId,
+        videoLimit: parseVideoLimit(videoLimit)
       })
 
       logger.info('Complete scraping finished', {
@@ -226,7 +263,7 @@ export class ScraperController {
       res.json({
         success: true,
         message: result.isNew ? '账号创建并完整抓取成功' : '账号更新并完整抓取成功',
-        data: result
+        data: serializeBigInt(result)
       })
     } catch (error) {
       logger.error('Failed to scrape complete data', {
@@ -427,12 +464,46 @@ export class ScraperController {
         }
       }
 
-      // YouTube用户资料URL: https://www.youtube.com/@username
+      // YouTube URL格式支持
+      // @username: https://www.youtube.com/@username
       const youtubeMatch = url.match(/youtube\.com\/@([^\/\?]+)/)
       if (youtubeMatch) {
         return {
           platform: 'youtube',
           identifier: youtubeMatch[1],
+          type: 'profile',
+          isValid: true
+        }
+      }
+
+      // Channel ID: https://www.youtube.com/channel/UCxxxxxxxxxxxx
+      const youtubeChannelMatch = url.match(/youtube\.com\/channel\/([\w-]+)/)
+      if (youtubeChannelMatch) {
+        return {
+          platform: 'youtube',
+          identifier: youtubeChannelMatch[1],
+          type: 'profile',
+          isValid: true
+        }
+      }
+
+      // Custom URL: https://www.youtube.com/c/customname
+      const youtubeCustomMatch = url.match(/youtube\.com\/c\/([\w.-]+)/)
+      if (youtubeCustomMatch) {
+        return {
+          platform: 'youtube',
+          identifier: youtubeCustomMatch[1],
+          type: 'profile',
+          isValid: true
+        }
+      }
+
+      // Video URLs (will be handled by adapter): shorts, watch, youtu.be
+      const youtubeVideoMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/)
+      if (youtubeVideoMatch) {
+        return {
+          platform: 'youtube',
+          identifier: youtubeVideoMatch[1],
           type: 'profile',
           isValid: true
         }

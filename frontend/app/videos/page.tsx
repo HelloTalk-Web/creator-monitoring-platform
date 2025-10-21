@@ -14,6 +14,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import axios from "axios"
 import Link from "next/link"
+import { getDisplayImageUrl } from "@/lib/utils"
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
 
 interface Video {
   id: number
@@ -95,7 +98,7 @@ export default function AllVideosPage() {
       const response = await axios.get<ApiResponse<{
         accounts: Account[],
         pagination: { total: number }
-      }>>("/api/platforms/accounts", {
+      }>>(`${API_BASE_URL}/api/platforms/accounts`, {
         params: {
           page: 1,
           pageSize: 1000 // 获取所有账号用于筛选
@@ -114,7 +117,7 @@ export default function AllVideosPage() {
   const fetchVideos = async () => {
     try {
       setLoading(true)
-      const response = await axios.get<ApiResponse<{ videos: Video[], total: number }>>("/api/v1/videos", {
+      const response = await axios.get<ApiResponse<{ videos: Video[], total: number }>>(`${API_BASE_URL}/api/v1/videos`, {
         params: {
           ...(selectedAccountId !== "all" && { accountId: selectedAccountId }),
           page,
@@ -163,7 +166,7 @@ export default function AllVideosPage() {
   const handleExportFiltered = async () => {
     try {
       setExportingFiltered(true)
-      const response = await axios.get("/api/v1/videos/export/filtered", {
+      const response = await axios.get(`${API_BASE_URL}/api/v1/videos/export/filtered`, {
         params: {
           ...(selectedAccountId !== "all" && { accountId: selectedAccountId }),
           ...(appliedSearch && { title: appliedSearch }),
@@ -196,7 +199,7 @@ export default function AllVideosPage() {
   const handleExportAll = async () => {
     try {
       setExportingAll(true)
-      const response = await axios.get("/api/v1/videos/export/all", {
+      const response = await axios.get(`${API_BASE_URL}/api/v1/videos/export/all`, {
         responseType: 'blob'
       })
 
@@ -223,7 +226,7 @@ export default function AllVideosPage() {
       const videoUrl = video.pageUrl || video.videoUrl
 
       const response = await axios.post<ApiResponse<{ videoId: string, updated: boolean, message: string }>>(
-        "/api/scrape/update-video",
+        `${API_BASE_URL}/api/scrape/update-video`,
         { url: videoUrl }
       )
 
@@ -264,7 +267,7 @@ export default function AllVideosPage() {
       try {
         const videoUrl = video.pageUrl || video.videoUrl
         const response = await axios.post<ApiResponse<{ videoId: string, updated: boolean, message: string }>>(
-          "/api/scrape/update-video",
+          `${API_BASE_URL}/api/scrape/update-video`,
           { url: videoUrl }
         )
 
@@ -667,7 +670,7 @@ export default function AllVideosPage() {
                             <div className="relative w-16 h-24 bg-muted rounded overflow-hidden shrink-0">
                               {video.thumbnailUrl ? (
                                 <img
-                                  src={video.thumbnailUrl}
+                                  src={getDisplayImageUrl(video.thumbnailUrl) ?? video.thumbnailUrl}
                                   alt={video.title}
                                   className="w-full h-full object-cover"
                                   onError={(e) => {
@@ -710,11 +713,11 @@ export default function AllVideosPage() {
                           <TableCell className="w-[240px] align-top">
                             <div className="flex items-start gap-2">
                               <div className="relative flex-1 group" tabIndex={0}>
-                                <span className="font-medium whitespace-normal break-words line-clamp-3">
+                                <span className="font-medium whitespace-normal break-all line-clamp-3">
                                   {video.title}
                                 </span>
                                 <div
-                                  className="absolute left-0 top-full z-20 mt-1 hidden w-[30rem] rounded-md border bg-popover p-3 text-sm text-popover-foreground shadow-lg whitespace-normal break-words group-hover:block group-focus-within:block cursor-text"
+                                  className="absolute left-0 top-full z-20 mt-1 hidden w-[30rem] rounded-md border bg-popover p-3 text-sm text-popover-foreground shadow-lg whitespace-normal break-all group-hover:block group-focus-within:block cursor-text"
                                   role="tooltip"
                                 >
                                   {video.title}
