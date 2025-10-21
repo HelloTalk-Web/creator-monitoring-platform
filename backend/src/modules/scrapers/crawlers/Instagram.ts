@@ -34,20 +34,23 @@ export class InstagramAdapter {
    * 从URL提取用户名或shortcode
    */
   private extractIdentifier(url: string): { type: 'user' | 'post' | 'reel'; value: string } {
+    // 先清理URL
+    const cleanUrl = this.cleanUrl(url)
+
     // 检查是否是reel链接
-    const reelMatch = url.match(/instagram\.com\/reel\/([a-zA-Z0-9_-]+)/)
+    const reelMatch = cleanUrl.match(/instagram\.com\/reel\/([a-zA-Z0-9_-]+)/)
     if (reelMatch) {
       return { type: 'reel', value: reelMatch[1] }
     }
 
     // 检查是否是post链接
-    const postMatch = url.match(/instagram\.com\/p\/([a-zA-Z0-9_-]+)/)
+    const postMatch = cleanUrl.match(/instagram\.com\/p\/([a-zA-Z0-9_-]+)/)
     if (postMatch) {
       return { type: 'post', value: postMatch[1] }
     }
 
     // 检查是否是用户主页链接
-    const userMatch = url.match(/instagram\.com\/([a-zA-Z0-9._]+)/)
+    const userMatch = cleanUrl.match(/instagram\.com\/([a-zA-Z0-9._]+)/)
     if (userMatch) {
       return { type: 'user', value: userMatch[1] }
     }
@@ -97,16 +100,29 @@ export class InstagramAdapter {
   }
 
   /**
+   * 清理URL，移除查询参数和多余的引号
+   */
+  private cleanUrl(url: string): string {
+    return url.trim()
+      .replace(/^["']/, '')  // 移除开头的引号
+      .replace(/["']$/, '')  // 移除结尾的引号
+      .split('?')[0]         // 移除查询参数
+  }
+
+  /**
    * 从URL提取帖子shortcode
    */
   private extractShortcode(url: string): string {
+    // 先清理URL
+    const cleanUrl = this.cleanUrl(url)
+
     const patterns = [
       /instagram\.com\/p\/([a-zA-Z0-9_-]+)/,
       /instagram\.com\/reel\/([a-zA-Z0-9_-]+)/
     ]
 
     for (const pattern of patterns) {
-      const match = url.match(pattern)
+      const match = cleanUrl.match(pattern)
       if (match) {
         return match[1]
       }
@@ -384,6 +400,7 @@ export class InstagramAdapter {
    */
   async getVideoInfo(videoUrl: string): Promise<any> {
     const shortcode = this.extractShortcode(videoUrl)
+    const cleanUrl = this.cleanUrl(videoUrl)  // 使用清理后的URL
 
     // 首先尝试使用有积分的API Key
     let apiKey = await apiKeyService.getNextApiKeyWithCredits()
@@ -393,7 +410,9 @@ export class InstagramAdapter {
       apiKey = apiKeyService.getNextApiKey()
     }
 
-    const response = await fetch(`${this.baseUrl}/v1/instagram/post?url=${encodeURIComponent(videoUrl)}`, {
+    console.log(`🎯 获取视频信息: ${videoUrl} -> 清理后: ${cleanUrl}`)
+
+    const response = await fetch(`${this.baseUrl}/v1/instagram/post?url=${encodeURIComponent(cleanUrl)}`, {
       headers: {
         'x-api-key': apiKey,
         'Content-Type': 'application/json'
@@ -410,7 +429,7 @@ export class InstagramAdapter {
         throw new Error('Instagram API error: 所有API Key积分均不足')
       }
 
-      const retryResponse = await fetch(`${this.baseUrl}/v1/instagram/post?url=${encodeURIComponent(videoUrl)}`, {
+      const retryResponse = await fetch(`${this.baseUrl}/v1/instagram/post?url=${encodeURIComponent(cleanUrl)}`, {
         headers: {
           'x-api-key': retryApiKey,
           'Content-Type': 'application/json'
@@ -435,13 +454,16 @@ export class InstagramAdapter {
    * 验证Instagram URL格式
    */
   isValidInstagramUrl(url: string): boolean {
+    // 先清理URL
+    const cleanUrl = this.cleanUrl(url)
+
     const patterns = [
       /^https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9._]+\/?$/,
       /^https?:\/\/(www\.)?instagram\.com\/p\/[a-zA-Z0-9_-]+\/?$/,
       /^https?:\/\/(www\.)?instagram\.com\/reel\/[a-zA-Z0-9_-]+\/?$/
     ]
 
-    return patterns.some(pattern => pattern.test(url))
+    return patterns.some(pattern => pattern.test(cleanUrl))
   }
 
   /**
@@ -451,8 +473,8 @@ export class InstagramAdapter {
     const identifier = this.extractIdentifier(url)
 
     if (identifier.type === 'post' || identifier.type === 'reel') {
-      // 对于post和reel链接，保持原样
-      return url
+      // 对于post和reel链接，返回清理后的URL
+      return this.cleanUrl(url)
     }
 
     // 对于用户主页，标准化格式
