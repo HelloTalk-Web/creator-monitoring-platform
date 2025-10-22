@@ -30,9 +30,9 @@ const nextConfig: NextConfig = {
 
   // 🔧 API 代理配置
   async rewrites() {
-    // 🔧 这里替换为您的 Worker 域名
+    // 🔧 使用自定义域名
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ||
-                      "https://creator-api-proxy.your-username.workers.dev"
+                      "https://api.meshowcase.xyz"
 
     return [
       {
@@ -44,7 +44,7 @@ const nextConfig: NextConfig = {
 
   // 🔧 环境变量
   env: {
-    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
+    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.meshowcase.xyz',
     NEXT_PUBLIC_DEPLOYMENT_ENV: process.env.NEXT_PUBLIC_DEPLOYMENT_ENV || 'production'
   }
 }
