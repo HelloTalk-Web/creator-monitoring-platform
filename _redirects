@@ -3,3 +3,5 @@
 
 # Fallback to index.html for SPA routes
 /*    /index.html   200
+
+# Updated: 2025-10-22 for Cloudflare Pages deployment fix
