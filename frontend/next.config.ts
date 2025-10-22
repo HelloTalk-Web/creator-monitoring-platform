@@ -30,8 +30,9 @@ const nextConfig: NextConfig = {
 
   // 🔧 API 代理配置
   async rewrites() {
+    // 🔧 这里替换为您的 Worker 域名
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ||
-                      "https://creator-monitoring-api.your-subdomain.workers.dev"
+                      "https://creator-api-proxy.your-username.workers.dev"
 
     return [
       {

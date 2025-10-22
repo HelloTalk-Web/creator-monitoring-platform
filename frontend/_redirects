@@ -1,5 +1,5 @@
 # API 代理重定向
-/api/*  https://creator-monitoring-api.your-actual-subdomain.workers.dev/api/:splat  200
+/api/*  /api/:splat  200
 
 # 健康检查
 /health  /index.html  200
