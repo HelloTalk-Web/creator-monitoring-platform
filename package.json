@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "cd frontend && npm install && npm run build",
+    "deploy": "cd frontend && npm install && npm run build && npx wrangler pages deploy out",
     "dev": "cd frontend && npm run dev"
   },
   "engines": {
