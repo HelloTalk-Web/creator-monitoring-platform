@@ -1,5 +1,5 @@
 // Cloudflare Workers API 入口文件
-import { createClient } from '@libsql/client/web'
+import { createClient } from '@libsql/client'
 
 // 创建路由器
 class Router {
