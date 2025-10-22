@@ -1,0 +1,5 @@
+# API proxy to backend server
+/api/*  https://117.72.221.238:8000/api/:splat  200
+
+# Fallback to index.html for SPA routes
+/*    /index.html   200
