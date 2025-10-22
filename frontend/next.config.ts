@@ -2,15 +2,15 @@ import type { NextConfig } from "next"
 import path from "path"
 
 const nextConfig: NextConfig = {
-  // 🔧 Cloudflare Pages 配置 - 启用静态导出
+  // Cloudflare Pages configuration - enable static export
   output: 'export',
   trailingSlash: true,
   distDir: 'out',
-  // 🔧 修复workspace root警告
+  // Fix workspace root warning
   outputFileTracingRoot: path.join(__dirname, ".."),
 
   images: {
-    unoptimized: true, // Cloudflare 自动优化图片
+    unoptimized: true, // Cloudflare auto-optimizes images
     remotePatterns: [
       {
         protocol: "https",
@@ -31,8 +31,7 @@ const nextConfig: NextConfig = {
     ]
   },
 
-  
-  // 🔧 环境变量
+  // Environment variables
   env: {
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.meshowcase.xyz',
     NEXT_PUBLIC_DEPLOYMENT_ENV: process.env.NEXT_PUBLIC_DEPLOYMENT_ENV || 'production'
