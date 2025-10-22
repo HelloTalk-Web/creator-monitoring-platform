@@ -105,7 +105,7 @@ export class YouTubeAdapter {
       throw new Error(`Failed to get video info: ${response.status}`)
     }
 
-    const data = await response.json()
+    const data = await response.json() as any
 
     if (!data.items || data.items.length === 0) {
       throw new Error('Video not found')
@@ -208,7 +208,7 @@ export class YouTubeAdapter {
         throw new Error(`YouTube API error: ${response.status} ${response.statusText} - ${errorText}`)
       }
 
-      const data = await response.json() as YouTubeChannelResponse
+      const data = await response.json() as any
 
       if (!data.items || data.items.length === 0) {
         throw new Error('Channel not found')
@@ -254,7 +254,7 @@ export class YouTubeAdapter {
           const errorText = await response.text()
           throw new Error(`YouTube API error: ${response.status} - ${errorText}`)
         }
-        const data = await response.json() as YouTubeChannelResponse
+        const data = await response.json() as any
         if (!data.items || data.items.length === 0) {
           throw new Error('Channel not found')
         }
@@ -362,7 +362,7 @@ export class YouTubeAdapter {
         if (!response.ok) {
           throw new Error(`YouTube API error: ${response.status}`)
         }
-        const data = await response.json() as YouTubeChannelResponse
+        const data = await response.json() as any
         if (!data.items || data.items.length === 0) {
           throw new Error('Channel not found')
         }

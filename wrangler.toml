@@ -1,0 +1,39 @@
+name = "creator-monitoring"
+main = "workers/api/src/index.js"
+compatibility_date = "2023-12-01"
+
+# Workers配置
+[workers]
+kv_namespaces = [
+  { binding = "CACHE", id = "creator-monitoring-cache", preview_id = "cache-preview" }
+]
+
+# D1数据库配置
+[[d1_databases]]
+binding = "DB"
+database_name = "creator-monitoring-db"
+database_id = "your-database-id" # 需要创建D1数据库后更新
+
+# 环境变量
+[env.production]
+vars = {
+  ENVIRONMENT = "production",
+  NODE_ENV = "production"
+}
+
+[env.preview]
+vars = {
+  ENVIRONMENT = "preview",
+  NODE_ENV = "development"
+}
+
+# Pages配置（前端）
+[env.production.pages]
+vars = {
+  NEXT_PUBLIC_API_BASE_URL = "https://creator-monitoring-api.your-subdomain.workers.dev"
+}
+
+[env.preview.pages]
+vars = {
+  NEXT_PUBLIC_API_BASE_URL = "https://creator-monitoring-api-preview.your-subdomain.workers.dev"
+}

@@ -32,6 +32,7 @@ interface VideoData {
   duration: number
   creatorDisplayName: string
   platformDisplayName: string
+  pageUrl: string | null // 修复为string | null类型
 }
 
 /**

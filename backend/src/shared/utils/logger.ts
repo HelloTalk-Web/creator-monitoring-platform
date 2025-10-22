@@ -49,7 +49,7 @@ const transports = [
   }),
   // 错误日志文件
   new winston.transports.File({
-    filename: 'logs/error.log',
+    filename: process.env.ERROR_LOG_FILE || 'logs/error.log',
     level: 'error',
     format: winston.format.combine(
       winston.format.timestamp(),
@@ -58,7 +58,7 @@ const transports = [
   }),
   // 所有日志文件
   new winston.transports.File({
-    filename: 'logs/combined.log',
+    filename: process.env.COMBINED_LOG_FILE || 'logs/combined.log',
     format: winston.format.combine(
       winston.format.timestamp(),
       winston.format.json()
@@ -79,18 +79,18 @@ export const logger = winston.createLogger({
   transports,
   // 处理未捕获的异常
   exceptionHandlers: [
-    new winston.transports.File({ filename: 'logs/exceptions.log' })
+    new winston.transports.File({ filename: process.env.EXCEPTION_LOG_FILE || 'logs/exceptions.log' })
   ],
   // 处理未处理的Promise拒绝
   rejectionHandlers: [
-    new winston.transports.File({ filename: 'logs/rejections.log' })
+    new winston.transports.File({ filename: process.env.REJECTION_LOG_FILE || 'logs/rejections.log' })
   ]
 })
 
 // 生产环境下的额外配置
 if (process.env.NODE_ENV === 'production') {
   logger.add(new winston.transports.File({
-    filename: 'logs/production.log',
+    filename: process.env.PRODUCTION_LOG_FILE || 'logs/production.log',
     level: 'warn',
     format: winston.format.combine(
       winston.format.timestamp(),
@@ -141,7 +141,7 @@ export const httpLogger = winston.createLogger({
   defaultMeta: { service: 'http' },
   transports: [
     new winston.transports.File({
-      filename: 'logs/http.log',
+      filename: process.env.HTTP_LOG_FILE || 'logs/http.log',
       format: winston.format.json()
     })
   ]

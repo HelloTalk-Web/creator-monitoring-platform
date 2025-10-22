@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import db from '../shared/database/db'
+import { db } from '../shared/database/db'
 import { creatorAccounts, videos, platforms } from '../shared/database/schema'
 import { sql, count, sum, desc, eq } from 'drizzle-orm'
 import { logger } from '../shared/utils/logger'

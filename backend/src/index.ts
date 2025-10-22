@@ -8,7 +8,7 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 // 在环境变量加载后导入数据库和其他模块
-import db from './shared/database/db'
+import { db } from './shared/database/db'
 import * as schema from './shared/database/schema'
 import { logger } from './shared/utils/logger'
 import { platforms } from './shared/database/schema'
@@ -36,8 +36,14 @@ const app = express()
 
 // 基础中间件
 app.use(helmet())
+// 从环境变量获取允许的前端域名
+const getAllowedOrigins = () => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001'
+  return frontendUrl.split(',').map(url => url.trim())
+}
+
 app.use(cors({
-  origin: '*',
+  origin: getAllowedOrigins(),
   credentials: true
 }))
 app.use(morgan('combined', {

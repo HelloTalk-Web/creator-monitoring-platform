@@ -2,6 +2,49 @@
 
 一个现代化的多平台创作者数据监控系统，支持TikTok、抖音等平台的账号管理和视频数据自动抓取。
 
+## 🐳 容器化部署
+
+本项目已完全容器化，支持一键部署到任何支持Docker的环境。
+
+### 🚀 快速启动
+
+```bash
+# 克隆项目
+git clone <repository-url>
+cd creator-monitoring-platform
+
+# 启动所有服务
+docker-compose up -d
+
+# 查看服务状态
+docker-compose ps
+```
+
+### 🏗️ 架构概览
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   前端 (Nginx)   │    │   后端 (Node.js)  │    │  数据库 (PostgreSQL) │
+│   端口: 3000     │    │   端口: 8000     │    │   端口: 5432      │
+│   Next.js + 静态  │    │   Express + API    │    │   数据持久化      │
+│   文件服务        │    │   业务逻辑处理     │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### 🐋 镜像构建
+
+```bash
+# 构建自定义镜像
+docker build -t creator-monitoring-backend ./backend
+docker build -t creator-monitoring-frontend ./frontend
+
+# 推送到镜像仓库
+docker push creator-monitoring-backend
+docker push creator-monitoring-frontend
+```
+
+一个现代化的多平台创作者数据监控系统，支持TikTok、抖音等平台的账号管理和视频数据自动抓取。
+
 ## ✨ 核心功能
 
 - 🌐 **多平台支持** - TikTok、抖音（可扩展更多平台）

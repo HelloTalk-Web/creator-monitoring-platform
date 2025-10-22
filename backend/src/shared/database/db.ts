@@ -1,29 +1,42 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import path from 'path'
+import fs from 'fs'
+import dotenv from 'dotenv'
+import { fileURLToPath } from 'url'
 import * as schema from './schema'
-import { logger } from '../utils/logger'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+const envCandidates = [
+  process.env.ENV_FILE ? path.resolve(process.env.ENV_FILE) : null,
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(__dirname, '../../../.env'),
+  path.resolve(__dirname, '../../.env'),
+  path.resolve(__dirname, '../.env')
+].filter((p): p is string => Boolean(p))
+
+const envPath = envCandidates.find(candidate => fs.existsSync(candidate))
+
+if (envPath) {
+  dotenv.config({ path: envPath })
+} else {
+  dotenv.config()
+}
 
 // 创建PostgreSQL连接
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5433/creator_monitoring'
+const connectionString =
+  process.env.DATABASE_URL ||
+  'postgresql://postgres:postgres@localhost:5433/creator_monitoring'
+
+if (!connectionString) {
+  throw new Error('DATABASE_URL 未配置，无法连接数据库')
+}
+
 const client = postgres(connectionString, { max: 10 })
 
 // 创建Drizzle实例
 export const db = drizzle(client, { schema })
-
-// 测试数据库连接
-async function testDatabaseConnection() {
-  try {
-    await client`SELECT 1`
-    logger.info('Database connection established successfully')
-  } catch (error) {
-    logger.error('Database connection failed', {
-      connectionString: connectionString.replace(/:([^:@]+)@/, ':***@'), // 隐藏密码
-      error: (error as Error).message
-    })
-  }
-}
-
-// 立即测试连接
-testDatabaseConnection()
 
 export default db

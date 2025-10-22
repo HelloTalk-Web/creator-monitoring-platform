@@ -1,0 +1,50 @@
+# 依赖目录
+node_modules
+npm-debug.log*
+
+# 构建产物
+.next/
+out/
+build/
+dist/
+
+# 环境变量文件
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE和编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 日志文件
+logs/
+*.log
+
+# 测试覆盖率
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# 其他
+.git/
+.gitignore
+README.md
+Dockerfile*
+docker-compose*
+
+# Docker镜像构建缓存
+.docker/
+
+# 部署相关
+DEPLOYMENT.md
+build-images.sh

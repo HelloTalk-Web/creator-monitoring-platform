@@ -74,8 +74,8 @@ async function testDatabaseConnection(corsHeaders) {
     console.log('开始测试数据库连接...')
 
     const client = createClient({
-      url: 'libsql://117.72.221.238:5433/creator_monitoring?tls=0',
-      authToken: 'postgres:postgres'
+      url: env.DATABASE_URL || 'libsql://117.72.221.238:5433/creator_monitoring?tls=0',
+      authToken: env.DATABASE_AUTH_TOKEN || 'postgres:postgres'
     })
 
     // 简单连接测试
@@ -122,8 +122,8 @@ async function testDatabaseQuery(corsHeaders) {
     console.log('开始测试数据库查询...')
 
     const client = createClient({
-      url: 'libsql://117.72.221.238:5433/creator_monitoring?tls=0',
-      authToken: 'postgres:postgres'
+      url: env.DATABASE_URL || 'libsql://117.72.221.238:5433/creator_monitoring?tls=0',
+      authToken: env.DATABASE_AUTH_TOKEN || 'postgres:postgres'
     })
 
     // 测试查询 creator_accounts 表
@@ -171,8 +171,8 @@ async function testDatabaseSchema(corsHeaders) {
     console.log('开始测试数据库表结构...')
 
     const client = createClient({
-      url: 'libsql://117.72.221.238:5433/creator_monitoring?tls=0',
-      authToken: 'postgres:postgres'
+      url: env.DATABASE_URL || 'libsql://117.72.221.238:5433/creator_monitoring?tls=0',
+      authToken: env.DATABASE_AUTH_TOKEN || 'postgres:postgres'
     })
 
     // 查询表结构
@@ -234,8 +234,8 @@ async function getAccounts(corsHeaders, url) {
     console.log('开始获取账号列表...')
 
     const client = createClient({
-      url: 'libsql://117.72.221.238:5433/creator_monitoring?tls=0',
-      authToken: 'postgres:postgres'
+      url: env.DATABASE_URL || 'libsql://117.72.221.238:5433/creator_monitoring?tls=0',
+      authToken: env.DATABASE_AUTH_TOKEN || 'postgres:postgres'
     })
 
     const limit = parseInt(url.searchParams.get('limit') || '10')

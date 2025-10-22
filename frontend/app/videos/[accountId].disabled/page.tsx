@@ -1,5 +1,8 @@
 "use client"
 
+// 注意：由于使用了React hooks，这个文件不能进行静态导出
+// 我们需要将动态路由处理逻辑移到后端API
+
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
