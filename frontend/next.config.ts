@@ -5,6 +5,13 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   distDir: 'out',
 
+  // 禁用实验性功能以确保构建稳定性
+  experimental: {
+    turbo: {
+      rules: {},
+    },
+  },
+
   // Images configuration for Cloudflare
   images: {
     unoptimized: true,
@@ -27,6 +34,10 @@ const nextConfig: NextConfig = {
       }
     ]
   },
+
+  // 确保静态导出的配置优化
+  poweredByHeader: false,
+  generateEtags: false,
 
   // Environment variables
   env: {
