@@ -1,9 +1,0 @@
-{
-  "name": "creator-monitoring-api",
-  "version": "1.0.0",
-  "type": "module",
-  "main": "src/index.js",
-  "dependencies": {
-    "@libsql/client": "^0.4.0"
-  }
-}
