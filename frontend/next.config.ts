@@ -5,11 +5,9 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   distDir: 'out',
 
-  // 禁用实验性功能以确保构建稳定性
-  experimental: {
-    turbo: {
-      rules: {},
-    },
+  // Turbopack 配置（新版本语法）
+  turbopack: {
+    rules: {},
   },
 
   // Images configuration for Cloudflare
