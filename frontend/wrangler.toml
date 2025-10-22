@@ -2,8 +2,4 @@ name = "creator-monitoring-platform"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-[pages]
-build_output_dir = "out"
-
-[[pages_build_output]]
-directory = "out"
+pages_build_output_dir = "out"
