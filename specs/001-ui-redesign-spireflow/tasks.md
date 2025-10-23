@@ -32,14 +32,13 @@
 
 ### Tasks
 
-- [ ] T001 安装前端测试依赖到 frontend/package.json (Vitest, React Testing Library, Playwright, axe-core)
+- [ ] T001 安装前端依赖到 frontend/package.json (Vitest, React Testing Library, Playwright, axe-core, **tw-colors, next-themes**, @tanstack/react-virtual)
 - [ ] T002 [P] 创建 frontend/vitest.config.ts 配置文件
 - [ ] T003 [P] 创建 frontend/vitest.setup.ts 测试环境设置
 - [ ] T004 [P] 创建 frontend/playwright.config.ts E2E测试配置
-- [ ] T005 安装虚拟滚动库 @tanstack/react-virtual 到 frontend/package.json
 - [ ] T006 [P] 创建目录 frontend/types/ 存放类型定义
 - [ ] T007 [P] 创建目录 frontend/components/theme/ 存放主题组件
-- [ ] T008 [P] 创建目录 frontend/styles/themes/ 存放主题CSS文件
+- [ ] T008 [P] 创建目录 frontend/styles/themes/ 存放主题**对象文件**(TypeScript)
 
 **Parallel Execution Example**:
 ```bash
@@ -56,12 +55,12 @@
 
 ### Tasks
 
-- [ ] T009 创建 frontend/types/theme.ts 定义Theme、ColorScheme、ThemePreference、BreakpointConfig类型
-- [ ] T010 [P] 创建 frontend/components/theme/theme-config.ts 定义3个预设主题(midnight、charcoal、obsidian)
-- [ ] T011 [P] 创建 frontend/styles/themes/midnight.css 定义midnight主题CSS变量
-- [ ] T012 [P] 创建 frontend/styles/themes/charcoal.css 定义charcoal主题CSS变量
-- [ ] T013 [P] 创建 frontend/styles/themes/obsidian.css 定义obsidian主题CSS变量
-- [ ] T014 更新 frontend/tailwind.config.ts 扩展颜色变量映射(primaryBg、secondaryBg等)
+- [ ] T009 创建 frontend/types/theme.ts 定义Theme、ColorScheme(32个变量)、ThemePreference、BreakpointConfig类型
+- [ ] T010 创建 frontend/styles/themes/obsidian.ts 定义Obsidian主题**对象**(基于Spireflow真实颜色值)
+- [ ] T011 [P] 创建 frontend/styles/themes/midnight.ts 定义Midnight主题对象
+- [ ] T012 [P] 创建 frontend/styles/themes/charcoal.ts 定义Charcoal主题对象
+- [ ] T013 [P] 创建 frontend/styles/themes/index.ts 导出所有主题对象
+- [ ] T014 更新 frontend/tailwind.config.ts **使用tw-colors的createThemes插件**(而非手动扩展)
 
 **Parallel Execution Example**:
 ```bash
@@ -84,17 +83,17 @@
 
 ### Tasks
 
-- [ ] T015 [US1] 创建 frontend/lib/theme-utils.ts 工具函数(主题应用、localStorage读写)
-- [ ] T016 [US1] 创建 frontend/components/theme/theme-provider.tsx ThemeContext和Provider组件
-- [ ] T017 [US1] 更新 frontend/app/layout.tsx 集成ThemeProvider,添加阻塞脚本防止闪烁
-- [ ] T018 [P] [US1] 更新 frontend/app/globals.css 引入主题CSS文件和CSS变量
-- [ ] T019 [P] [US1] 更新 frontend/app/accounts/page.tsx 应用深色主题样式类(bg-primaryBg、text-primaryText)
-- [ ] T020 [P] [US1] 更新 frontend/app/videos/page.tsx 应用深色主题样式类
-- [ ] T021 [P] [US1] 更新 frontend/app/dashboard/page.tsx 应用深色主题样式类
-- [ ] T022 [US1] 编写单元测试 frontend/components/theme/__tests__/theme-provider.test.tsx
-- [ ] T023 [US1] 编写E2E测试 frontend/e2e/theme-default.spec.ts 验证默认主题加载
-- [ ] T024 [US1] 编写无障碍测试 frontend/e2e/accessibility-contrast.spec.ts 验证对比度
-- [ ] T025 [US1] 在Chrome DevTools验证主题变量应用,确认无闪烁
+- [ ] T015 [US1] **简化theme-utils.ts** (next-themes已处理localStorage,仅需辅助函数)
+- [ ] T016 [US1] **创建theme-provider.tsx使用next-themes**(包装器组件,提供自定义API)
+- [ ] T017 [US1] 更新 frontend/app/layout.tsx **集成next-themes的ThemeProvider**,确保SSR无闪烁
+- [ ] T018 [P] [US1] **简化globals.css** (tw-colors自动生成CSS变量,仅需基础样式)
+- [ ] T019 [P] [US1] 更新 frontend/app/accounts/page.tsx 应用主题类名(bg-primaryBg, text-primaryText等)
+- [ ] T020 [P] [US1] 更新 frontend/app/videos/page.tsx 应用主题类名
+- [ ] T021 [P] [US1] 更新 frontend/app/dashboard/page.tsx 应用主题类名
+- [ ] T022 [US1] 编写单元测试 frontend/components/theme/__tests__/theme-provider.test.tsx (测试next-themes集成)
+- [ ] T023 [US1] 编写E2E测试 frontend/e2e/theme-default.spec.ts 验证默认主题为obsidian
+- [ ] T024 [US1] 编写无障碍测试 frontend/e2e/accessibility-contrast.spec.ts 验证WCAG AA对比度
+- [ ] T025 [US1] 在Chrome DevTools验证tw-colors生成的CSS类,确认主题切换无闪烁
 - [ ] T026 [US1] 运行pnpm vitest和pnpm exec playwright test,确保所有测试通过
 
 **Parallel Execution Example**:
@@ -121,7 +120,7 @@
 
 ### Tasks
 
-- [ ] T027 [US2] 创建 frontend/components/ui/card.tsx 统一卡片组件(圆角、阴影、边框)
+- [ ] T027 [US2] 创建 frontend/components/ui/card.tsx 统一卡片组件(**rounded-[8px]**,阴影、边框)
 - [ ] T028 [US2] 创建 frontend/components/ui/account-card.tsx 账号卡片组件,使用Card组件
 - [ ] T029 [P] [US2] 创建 frontend/components/ui/video-card.tsx 视频卡片组件
 - [ ] T030 [P] [US2] 创建 frontend/components/ui/stats-card.tsx 统计数据卡片组件(仪表板用)
@@ -135,7 +134,7 @@
 - [ ] T038 [US2] 编写组件测试 frontend/components/ui/__tests__/card.test.tsx
 - [ ] T039 [US2] 编写组件测试 frontend/components/ui/__tests__/account-card.test.tsx
 - [ ] T040 [US2] 编写E2E测试 frontend/e2e/card-layout.spec.ts 验证卡片布局和hover效果
-- [ ] T041 [US2] 运行测试并截图对比,确认卡片样式符合设计
+- [ ] T041 [US2] 运行测试并截图对比,确认卡片样式符合Spireflow设计
 
 **Parallel Execution Example**:
 ```bash

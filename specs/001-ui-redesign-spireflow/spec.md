@@ -33,7 +33,7 @@
 
 **Acceptance Scenarios**:
 
-1. **Given** 用户访问账号列表页面, **When** 页面加载完成, **Then** 每个账号以独立卡片形式展示,卡片有圆角边框(rounded-xl)、阴影效果、统一的padding和边距
+1. **Given** 用户访问账号列表页面, **When** 页面加载完成, **Then** 每个账号以独立卡片形式展示,卡片有圆角边框(rounded-[8px])、阴影效果、统一的padding和边距
 2. **Given** 用户查看视频数据, **When** 滚动页面浏览, **Then** 视频卡片展示缩略图、标题、播放量、发布时间等关键数据,布局整齐对齐
 3. **Given** 用户在仪表板查看统计数据, **When** 页面呈现多个指标卡, **Then** 每个指标卡显示数值、趋势百分比、图表,卡片之间间距均匀
 4. **Given** 用户hover卡片, **When** 鼠标移到卡片上, **Then** 卡片有视觉反馈(如边框高亮、阴影加深),提示可交互
@@ -87,7 +87,7 @@
 ### Functional Requirements
 
 - **FR-001**: 系统必须应用深色主题作为默认视觉风格,包括主背景色(primaryBg)、次背景色(secondaryBg)、主文字色(primaryText)、边框色(mainBorder)等颜色变量
-- **FR-002**: 系统必须以卡片形式展示列表数据(账号、视频),每个卡片包含圆角边框(rounded-xl)、阴影效果(shadow-lg)、边框线(border-mainBorder)
+- **FR-002**: 系统必须以卡片形式展示列表数据(账号、视频),每个卡片包含圆角边框(rounded-[8px])、阴影效果(shadow-lg)、边框线(border-mainBorder)
 - **FR-003**: 系统必须实现响应式布局,支持移动设备(xs/sm)、平板(md/lg)、桌面(xl/2xl/3xl)等断点,自动调整padding、spacing、列数
 - **FR-004**: 系统必须提供主题切换功能,至少包含3个预设主题(midnight、charcoal、obsidian),用户可以在主题之间切换
 - **FR-005**: 系统必须支持深色/浅色模式切换,并且能够检测操作系统的颜色模式偏好(prefers-color-scheme)
@@ -132,6 +132,8 @@
 - 假设用户浏览器支持CSS自定义属性(CSS Variables),覆盖95%以上的现代浏览器
 - 假设平台有本地存储(localStorage)权限,可以持久化用户的主题偏好
 - 假设当前平台的数据结构(账号、视频)已经定义,UI重构不涉及数据模型的修改
+- 假设使用tw-colors插件简化主题切换实现,而非手动管理CSS变量
+- 假设使用next-themes库管理主题状态,提供SSR支持和无闪烁切换
 - 假设设计团队提供了Spireflow风格的颜色变量定义,包括至少3个预设主题的完整配色方案
 
 ## Constraints *(optional)*
