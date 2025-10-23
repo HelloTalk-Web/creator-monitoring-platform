@@ -217,7 +217,8 @@ async function executeMigration(): Promise<void> {
     `);
 
     let avatarMigrated = 0;
-    for (const account of accountsToMigrate.rows as any[]) {
+    const accountRows = accountsToMigrate.rows || accountsToMigrate || [];
+    for (const account of accountRows as any[]) {
       const urlHash = generateUrlHash(account.avatar_url);
 
       try {
@@ -261,7 +262,8 @@ async function executeMigration(): Promise<void> {
     `);
 
     let thumbnailMigrated = 0;
-    for (const video of videosToMigrate.rows as any[]) {
+    const videoRows = videosToMigrate.rows || videosToMigrate || [];
+    for (const video of videoRows as any[]) {
       const urlHash = generateUrlHash(video.thumbnail_url);
 
       try {
@@ -320,8 +322,9 @@ async function validateMigration(): Promise<void> {
       AND im.id IS NULL
   `);
 
-  if (Number(avatarCheck.rows[0].count) > 0) {
-    console.warn(`   ⚠️  发现 ${avatarCheck.rows[0].count} 个头像未迁移`);
+  const avatarRows = avatarCheck.rows || avatarCheck || [];
+  if (avatarRows.length > 0 && Number(avatarRows[0].count) > 0) {
+    console.warn(`   ⚠️  发现 ${avatarRows[0].count} 个头像未迁移`);
   } else {
     console.log('   ✅ 所有头像数据已迁移');
   }
@@ -335,8 +338,9 @@ async function validateMigration(): Promise<void> {
       AND im.id IS NULL
   `);
 
-  if (Number(thumbnailCheck.rows[0].count) > 0) {
-    console.warn(`   ⚠️  发现 ${thumbnailCheck.rows[0].count} 个缩略图未迁移`);
+  const thumbnailRows = thumbnailCheck.rows || thumbnailCheck || [];
+  if (thumbnailRows.length > 0 && Number(thumbnailRows[0].count) > 0) {
+    console.warn(`   ⚠️  发现 ${thumbnailRows[0].count} 个缩略图未迁移`);
   } else {
     console.log('   ✅ 所有缩略图数据已迁移');
   }
