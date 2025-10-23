@@ -1,0 +1,234 @@
+openapi: 3.0.3
+info:
+  title: Image Storage API
+  description: 统一图片访问和管理API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development
+  - url: https://api.yourapp.com/api
+    description: Production
+
+paths:
+  /images/{type}/{id}:
+    get:
+      summary: 获取图片
+      description: 通过类型和实体ID获取图片，自动处理本地化和降级
+      operationId: getImage
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [avatar, thumbnail]
+          description: 图片类型
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 实体ID (账号ID或视频ID)
+      responses:
+        '200':
+          description: 成功返回图片
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        '302':
+          description: 重定向到本地或代理URL
+          headers:
+            Location:
+              schema:
+                type: string
+              description: 图片资源的实际URL
+        '404':
+          description: 图片不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /images/stats:
+    get:
+      summary: 获取图片存储统计
+      description: 返回图片总数、存储空间、命中率等统计信息
+      operationId: getImageStats
+      responses:
+        '200':
+          description: 成功返回统计信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageStats'
+        '401':
+          description: 未授权 (需要管理员权限)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /images/metadata/{url}:
+    get:
+      summary: 查询图片元数据
+      description: 通过URL查询图片的下载状态和元数据
+      operationId: getImageMetadata
+      parameters:
+        - name: url
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 图片的原始URL (需要URL编码)
+      responses:
+        '200':
+          description: 成功返回元数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageMetadata'
+        '404':
+          description: 未找到对应的元数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    ImageStats:
+      type: object
+      properties:
+        totalImages:
+          type: integer
+          description: 图片总数
+          example: 55000
+        totalStorageBytes:
+          type: integer
+          format: int64
+          description: 总存储空间(字节)
+          example: 5500000000
+        totalStorageGB:
+          type: number
+          format: float
+          description: 总存储空间(GB)
+          example: 5.5
+        availableSpaceGB:
+          type: number
+          format: float
+          description: 可用空间(GB)
+          example: 94.5
+        byStatus:
+          type: object
+          properties:
+            pending:
+              type: integer
+              example: 1000
+            downloading:
+              type: integer
+              example: 50
+            completed:
+              type: integer
+              example: 53000
+            failed:
+              type: integer
+              example: 950
+        cacheHitRate:
+          type: number
+          format: float
+          description: 本地化命中率 (0-1)
+          example: 0.96
+        lastUpdated:
+          type: string
+          format: date-time
+          description: 统计更新时间
+
+    ImageMetadata:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 元数据ID
+        originalUrl:
+          type: string
+          description: 原始URL
+        urlHash:
+          type: string
+          description: URL的MD5哈希
+        localPath:
+          type: string
+          nullable: true
+          description: 本地文件路径
+        fileSize:
+          type: integer
+          format: int64
+          nullable: true
+          description: 文件大小(字节)
+        mimeType:
+          type: string
+          nullable: true
+          description: MIME类型
+        downloadStatus:
+          type: string
+          enum: [pending, downloading, completed, failed]
+          description: 下载状态
+        retryCount:
+          type: integer
+          description: 重试次数
+        maxRetries:
+          type: integer
+          description: 最大重试次数
+        lastError:
+          type: string
+          nullable: true
+          description: 最后一次错误信息
+        nextRetryAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 下一次重试时间
+        accessCount:
+          type: integer
+          format: int64
+          description: 访问次数
+        lastAccessedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: 错误类型
+        message:
+          type: string
+          description: 错误消息
+        details:
+          type: object
+          nullable: true
+          description: 详细错误信息

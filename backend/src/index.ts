@@ -3,12 +3,6 @@ import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import dotenv from 'dotenv'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
-// ES模块中获取 __dirname
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
 
 // 加载环境变量
 dotenv.config()
@@ -25,7 +19,6 @@ import { requestLogger } from './shared/middleware/requestLogger'
 // 导入事件监听器和调度器
 import { videoHistoryListener } from './modules/video-metrics-history/listeners/video-history.listener'
 import { videoRefreshScheduler } from './shared/scheduler/video-refresh.scheduler'
-import { startImageDownloadWorker, shutdownImageDownloadWorker } from './jobs/image-download-worker'
 
 // 导入路由
 import { userRoutes } from './modules/users'
@@ -37,7 +30,6 @@ import dashboardRoutes from './routes/dashboard'
 // import analyticsRoutes from './routes/analytics'  // 暂时注释掉，文件不存在
 import videoMetricsHistoryRoutes from './modules/video-metrics-history/routes'
 import imageProxyRoutes from './routes/image-proxy'
-import imagesRoutes from './routes/images'
 
 // 创建Express应用
 const app = express()
@@ -77,27 +69,11 @@ app.use('/api/v1/scrape', scrapeRoutes)
 app.use('/api/v1/video-metrics-history', videoMetricsHistoryRoutes)
 // app.use('/api/v1/analytics', analyticsRoutes)  // 暂时注释掉
 
-// 静态文件服务（必须在API路由之前）
-// 为静态文件添加CORS头，允许跨域访问图片
-app.use('/static', (req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-  next()
-})
-
-app.use('/static', express.static(path.join(__dirname, '../static'), {
-  maxAge: '7d',  // 缓存7天
-  etag: true,
-  lastModified: true
-}))
-logger.info('✅ 静态文件服务已启动', { path: path.join(__dirname, '../static') })
-
 // 根据新的API文档，我们需要支持这些路径：
 app.use('/api/scrape', scrapeRoutes)  // 支持前端调用的 /api/scrape/complete
 app.use('/api/platforms', platformRoutes)  // 支持前端调用的 /api/platforms/accounts
 app.use('/api/dashboard', dashboardRoutes)  // 仪表板统计数据
-app.use('/api/image-proxy', imageProxyRoutes)  // 图片智能本地化代理
-app.use('/api/images', imagesRoutes)  // 统一图片访问API
+app.use('/api/image-proxy', imageProxyRoutes)  // 图片代理服务
 
 // 健康检查端点
 app.get('/health', (req, res) => {
@@ -142,10 +118,6 @@ async function startServer() {
       logger.info('Video refresh scheduler is disabled (set ENABLE_AUTO_REFRESH=true to enable)')
     }
 
-    // 启动图片下载 Worker
-    startImageDownloadWorker()
-    logger.info('Image download worker started')
-
     // 启动服务器
     app.listen(PORT, () => {
       logger.info(`Server started successfully`, {
@@ -167,14 +139,12 @@ async function startServer() {
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully')
   videoRefreshScheduler.stop()
-  await shutdownImageDownloadWorker()
   process.exit(0)
 })
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully')
   videoRefreshScheduler.stop()
-  await shutdownImageDownloadWorker()
   process.exit(0)
 })
 
