@@ -2,8 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, ThumbsUp, MessageCircle } from "lucide-react"
-import Image from "next/image"
-import { getDisplayImageUrl } from "@/lib/utils"
+import { ThumbnailImage } from "@/components/common/Image"
 
 interface Video {
   id: number
@@ -59,20 +58,12 @@ export function TrendingVideos({ videos }: TrendingVideosProps) {
                 className="flex gap-3 p-3 rounded-lg hover:bg-accent transition-colors cursor-pointer"
               >
                 <div className="flex-shrink-0 relative">
-                  <div className="w-24 h-16 bg-muted rounded overflow-hidden relative">
-                    {video.thumbnailUrl ? (
-                      <Image
-                        src={getDisplayImageUrl(video.thumbnailUrl) ?? video.thumbnailUrl}
-                        alt={video.title}
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                        无封面
-                      </div>
-                    )}
+                  <div className="w-24 h-16 bg-muted rounded overflow-hidden">
+                    <ThumbnailImage
+                      id={video.id}
+                      alt={video.title}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div className="absolute -top-2 -left-2 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
                     {index + 1}

@@ -5,8 +5,9 @@ import { RecentVideos } from "@/components/dashboard/recent-videos"
 import { PlatformDistribution } from "@/components/dashboard/platform-distribution"
 import { Users, Video, Eye, ThumbsUp } from "lucide-react"
 import { RefreshButton } from "./refresh-button"
+import { resolveApiBaseUrl } from "@/lib/utils"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+const API_BASE_URL = resolveApiBaseUrl()
 
 interface DashboardStats {
   totalAccounts: number

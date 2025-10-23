@@ -5,6 +5,15 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   distDir: 'out',
 
+  // 实验性功能配置
+  experimental: {
+    allowedDevOrigins: [
+      'https://social.hellotalk.xyz',
+      'http://localhost:4000',
+      'http://172.16.3.212:4000'
+    ]
+  },
+
   // Turbopack 配置（新版本语法）
   turbopack: {
     rules: {},
@@ -39,7 +48,7 @@ const nextConfig: NextConfig = {
 
   // Environment variables
   env: {
-    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.meshowcase.xyz',
+    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://nonextinct-vina-enforcedly.ngrok-free.dev',
     NEXT_PUBLIC_DEPLOYMENT_ENV: process.env.NEXT_PUBLIC_DEPLOYMENT_ENV || 'production'
   }
 }

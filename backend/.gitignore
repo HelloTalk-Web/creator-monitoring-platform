@@ -3,3 +3,20 @@ node_modules
 .env
 
 /src/generated/prisma
+
+# 图片存储目录（不提交到Git）
+/static/images/avatars/
+/static/images/thumbnails/
+/static/images/proxied/
+/static/images/downloaded/
+
+# 保留占位图目录结构，但排除内容
+!/static/images/placeholders/
+/static/images/placeholders/*
+!/static/images/placeholders/.gitkeep
+
+# 导出文件
+/exports/
+
+# 数据库备份
+/backups/

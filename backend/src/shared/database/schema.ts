@@ -35,6 +35,7 @@ export const creatorAccounts = pgTable('creator_accounts', {
   displayName: text('display_name'),
   profileUrl: text('profile_url').notNull(),
   avatarUrl: text('avatar_url'),
+  localAvatarUrl: text('local_avatar_url'), // 本地头像路径
   bio: text('bio'),
   followerCount: bigint('follower_count', { mode: 'bigint' }),
   followingCount: bigint('following_count', { mode: 'bigint' }),
@@ -141,3 +142,40 @@ export type NewScrapeTask = typeof scrapeTasks.$inferInsert
 
 export type SystemConfig = typeof systemConfigs.$inferSelect
 export type NewSystemConfig = typeof systemConfigs.$inferInsert
+
+// 图片元数据表 - 集中管理所有图片的元数据和状态
+export const imageMetadata = pgTable('image_metadata', {
+  id: serial('id').primaryKey(),
+
+  // 图片标识
+  originalUrl: text('original_url').notNull().unique(), // 原始URL (唯一索引)
+  urlHash: varchar('url_hash', { length: 32 }).notNull().unique(), // URL的MD5哈希 (快速查找)
+
+  // 存储信息
+  localPath: text('local_path'), // 本地文件路径
+  fileSize: bigint('file_size', { mode: 'number' }), // 文件大小(字节)
+  mimeType: varchar('mime_type', { length: 50 }), // MIME类型
+
+  // 状态追踪
+  downloadStatus: varchar('download_status', { length: 20 }).notNull().default('pending'), // pending | downloading | completed | failed
+  retryCount: integer('retry_count').notNull().default(0), // 当前重试次数
+  maxRetries: integer('max_retries').notNull().default(3), // 最大重试次数
+  lastError: text('last_error'), // 最后一次错误信息
+  nextRetryAt: timestamp('next_retry_at'), // 下一次重试时间
+
+  // 访问统计
+  accessCount: bigint('access_count', { mode: 'number' }).notNull().default(0), // 访问次数
+  lastAccessedAt: timestamp('last_accessed_at'), // 最后访问时间
+  firstAccessedAt: timestamp('first_accessed_at'), // 首次访问时间
+
+  // 时间戳
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  urlHashIndex: index('idx_image_url_hash').on(table.urlHash), // URL查找
+  downloadStatusIndex: index('idx_image_status').on(table.downloadStatus), // 状态筛选
+  lastAccessedIndex: index('idx_image_access').on(table.lastAccessedAt), // 清理策略
+}))
+
+export type ImageMetadata = typeof imageMetadata.$inferSelect
+export type NewImageMetadata = typeof imageMetadata.$inferInsert

@@ -5,30 +5,49 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-const PROXY_HOST_KEYWORDS = ["instagram.com", "fbcdn.net"]
-const PROXY_ENDPOINT = "/api/image-proxy/image"
+/**
+ * 获取图片显示URL (简化版 - 使用统一API)
+ *
+ * @param type - 图片类型: 'avatar' | 'thumbnail'
+ * @param id - 实体ID (账号ID或视频ID)
+ * @returns 统一图片API URL
+ *
+ * 🎯 极致简化: 开发者只需提供 type 和 id, 所有逻辑由后端处理
+ */
+export function getDisplayImageUrl(
+  type: 'avatar' | 'thumbnail',
+  id: number
+): string {
+  const baseUrl = resolveApiBaseUrl()
+  return `${baseUrl}/api/images/${type}/${id}`
+}
 
 /**
- * 根据源 URL 判断是否需要通过图片代理，避免第三方禁止热链。
+ * 旧版本函数 - 保留用于向后兼容
+ * @deprecated 请使用新的 getDisplayImageUrl(type, id) 签名
  */
-export function getDisplayImageUrl(url?: string | null): string | null {
-  if (!url) return null
+export function getDisplayImageUrlLegacy(
+  originalUrl?: string | null,
+  localPath?: string | null
+): string | null {
+  const baseUrl = resolveApiBaseUrl()
 
-  // 已经是代理地址，直接返回
-  if (url.startsWith(PROXY_ENDPOINT) || url.includes("/api/image-proxy/image?")) {
-    return url
+  // 优先: 本地路径 (最快、最可靠)
+  if (localPath) {
+    return `${baseUrl}${localPath}`
   }
 
-  try {
-    const parsed = new URL(url)
-    const needsProxy = PROXY_HOST_KEYWORDS.some((keyword) => parsed.hostname.includes(keyword))
-    if (!needsProxy) {
-      return url
-    }
-
-    return `${PROXY_ENDPOINT}?url=${encodeURIComponent(url)}`
-  } catch {
-    // 不是合法的绝对 URL，直接返回原值
-    return url
+  // 没有本地路径: 统一走代理 (代理会自动下载并本地化)
+  if (originalUrl) {
+    return `${baseUrl}/api/image-proxy/image?url=${encodeURIComponent(originalUrl)}`
   }
+
+  return null
+}
+
+/**
+ * 获取 API 基础地址
+ */
+export function resolveApiBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "http://localhost:8000"
 }

@@ -2,8 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Clock } from "lucide-react"
-import Image from "next/image"
-import { getDisplayImageUrl } from "@/lib/utils"
+import { ThumbnailImage } from "@/components/common/Image"
 
 interface Video {
   id: number
@@ -74,19 +73,11 @@ export function RecentVideos({ videos }: RecentVideosProps) {
               >
                 <div className="flex-shrink-0 relative">
                   <div className="w-32 h-20 bg-muted rounded overflow-hidden relative">
-                    {video.thumbnailUrl ? (
-                      <Image
-                        src={getDisplayImageUrl(video.thumbnailUrl) ?? video.thumbnailUrl}
-                        alt={video.title}
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                        无封面
-                      </div>
-                    )}
+                    <ThumbnailImage
+                      id={video.id}
+                      alt={video.title}
+                      className="w-full h-full object-cover"
+                    />
                     {video.duration > 0 && (
                       <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1 py-0.5 rounded">
                         {formatDuration(video.duration)}

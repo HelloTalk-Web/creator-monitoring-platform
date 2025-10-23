@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -9,12 +10,13 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Search, Trash2, Video, Upload, ChevronLeft, ChevronRight } from "lucide-react"
 import axios from "axios"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getDisplayImageUrl } from "@/lib/utils"
+import { resolveApiBaseUrl } from "@/lib/utils"
+import { AvatarImage } from "@/components/common/Image"
 
 interface Account {
   id: number
@@ -22,6 +24,7 @@ interface Account {
   platformId: number
   displayName: string
   avatarUrl: string | null
+  localAvatarUrl: string | null
   bio: string | null
   followerCount: number | null
   totalVideos: number
@@ -57,9 +60,10 @@ interface ApiResponse<T> {
 }
 
 const VIDEO_LIMIT_OPTIONS = [10, 20, 30, 50, 100, 200, 300, 500]
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+const API_BASE_URL = resolveApiBaseUrl()
 
 export default function HomePage() {
+  const router = useRouter()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -278,7 +282,7 @@ export default function HomePage() {
         }
 
         const response = await axios.post<ApiResponse<{ accountId: number, videosCount: number }>>(
-          `${API_BASE_URL}/api/scrape/complete`,
+        `${API_BASE_URL}/api/scrape/complete`,
           payload
         )
 
@@ -535,13 +539,11 @@ export default function HomePage() {
                         <TableCell className="font-medium">{account.id}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">
-                            {account.avatarUrl && (
-                              <img
-                                src={getDisplayImageUrl(account.avatarUrl) ?? account.avatarUrl}
-                                alt={account.displayName}
-                                className="w-10 h-10 rounded-full"
-                              />
-                            )}
+                            <AvatarImage
+                              id={account.id}
+                              alt={account.displayName}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
                             <div className="min-w-0">
                               <div className="font-medium truncate">{account.displayName}</div>
                               {account.bio && (
@@ -564,12 +566,14 @@ export default function HomePage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Link href={`/videos/${account.id}`}>
-                              <Button variant="outline" size="sm">
-                                <Video className="mr-1 h-4 w-4" />
-                                查看该账号视频数据
-                              </Button>
-                            </Link>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => router.push(`/videos/?accountId=${account.id}`)}
+                            >
+                              <Video className="mr-1 h-4 w-4" />
+                              查看该账号视频数据
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"

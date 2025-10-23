@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,9 +15,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import axios from "axios"
 import Link from "next/link"
-import { getDisplayImageUrl } from "@/lib/utils"
+import { resolveApiBaseUrl } from "@/lib/utils"
+import { AvatarImage, ThumbnailImage } from "@/components/common/Image"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+const API_BASE_URL = resolveApiBaseUrl()
 
 interface Video {
   id: number
@@ -25,6 +27,7 @@ interface Video {
   title: string
   description: string | null
   thumbnailUrl: string | null
+  thumbnailLocalPath: string | null
   videoUrl: string
   pageUrl?: string
   publishedAt: string
@@ -57,8 +60,10 @@ interface Account {
   username: string
   displayName: string
   avatarUrl: string | null
+  localAvatarUrl: string | null
   platformName: string
   platformDisplayName: string
+  profileUrl?: string
 }
 
 export default function AllVideosPage() {
@@ -73,7 +78,10 @@ export default function AllVideosPage() {
   const [publishedAfter, setPublishedAfter] = useState("")
   const [publishedBefore, setPublishedBefore] = useState("")
   const [showPopularOnly, setShowPopularOnly] = useState(false)
-  const [selectedAccountId, setSelectedAccountId] = useState<string>("all")
+  const searchParams = useSearchParams()
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(() => {
+    return searchParams.get("accountId") ?? "all"
+  })
   const [selectedPlatform, setSelectedPlatform] = useState<string>("all")
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -119,7 +127,7 @@ export default function AllVideosPage() {
       setLoading(true)
       const response = await axios.get<ApiResponse<{ videos: Video[], total: number }>>(`${API_BASE_URL}/api/v1/videos`, {
         params: {
-          ...(selectedAccountId !== "all" && { accountId: selectedAccountId }),
+          ...(selectedAccountId !== "all" && { accountId: Number(selectedAccountId) }),
           page,
           limit: pageSize,
           ...(appliedSearch && { title: appliedSearch }),
@@ -147,6 +155,7 @@ export default function AllVideosPage() {
     fetchAccounts()
   }, [])
 
+  
   useEffect(() => {
     fetchVideos()
   }, [page, pageSize, showPopularOnly, selectedTags, publishedAfter, publishedBefore, appliedSearch, selectedAccountId, selectedPlatform])
@@ -168,7 +177,7 @@ export default function AllVideosPage() {
       setExportingFiltered(true)
       const response = await axios.get(`${API_BASE_URL}/api/v1/videos/export/filtered`, {
         params: {
-          ...(selectedAccountId !== "all" && { accountId: selectedAccountId }),
+          ...(selectedAccountId !== "all" && { accountId: Number(selectedAccountId) }),
           ...(appliedSearch && { title: appliedSearch }),
           ...(selectedTags.length > 0 && { tags: selectedTags.join(',') }),
           ...(publishedAfter && { publishedAfter }),
@@ -332,6 +341,9 @@ export default function AllVideosPage() {
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
   const rangeEnd = total === 0 ? 0 : Math.min(page * pageSize, total)
 
+  // 获取当前选中账号的信息
+  const selectedAccount = accounts.find(account => account.id.toString() === selectedAccountId)
+
   // 获取唯一平台列表
   const uniquePlatforms = Array.from(new Set(accounts.map(a => a.platformName)))
 
@@ -339,8 +351,48 @@ export default function AllVideosPage() {
     <div className="container mx-auto py-8 px-4">
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>视频管理</CardTitle>
-          <CardDescription>查看和管理所有平台的视频数据</CardDescription>
+          <div className="flex items-center gap-3">
+            {selectedAccount && (
+              <AvatarImage
+                id={selectedAccount.id}
+                alt={selectedAccount.displayName}
+                className="w-8 h-8 rounded-full object-cover"
+              />
+            )}
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>
+                    {selectedAccount ? `${selectedAccount.displayName} 的视频数据` : "视频管理"}
+                  </CardTitle>
+                  <CardDescription>
+                    {selectedAccount
+                      ? `查看和管理 ${selectedAccount.displayName}(${selectedAccount.platformDisplayName}) 的视频数据`
+                      : "查看和管理所有平台的视频数据"
+                    }
+                  </CardDescription>
+                </div>
+                {selectedAccount && selectedAccount.profileUrl && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    asChild
+                    className="ml-4"
+                  >
+                    <a
+                      href={selectedAccount.profileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      访问主页
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
         </CardHeader>
       </Card>
 
@@ -669,13 +721,10 @@ export default function AllVideosPage() {
                           <TableCell className="w-[100px]">
                             <div className="relative w-16 h-24 bg-muted rounded overflow-hidden shrink-0">
                               {video.thumbnailUrl ? (
-                                <img
-                                  src={getDisplayImageUrl(video.thumbnailUrl) ?? video.thumbnailUrl}
+                                <ThumbnailImage
+                                  id={video.id}
                                   alt={video.title}
                                   className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = "none"
-                                  }}
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
@@ -696,7 +745,13 @@ export default function AllVideosPage() {
                           </TableCell>
 
                           <TableCell className="w-[180px] align-top">
-                            <Link href={`/videos/${video.accountId}`} className="block hover:underline">
+                            <Link
+                              href={{
+                                pathname: "/videos/",
+                                query: { accountId: video.accountId.toString() }
+                              }}
+                              className="block hover:underline"
+                            >
                               <div className="flex items-start gap-2">
                                 <div className="min-w-0 space-y-1">
                                   <div className="font-medium truncate">{video.creatorDisplayName || video.creatorUsername || "-"}</div>
