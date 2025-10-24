@@ -120,7 +120,7 @@ export class ImageStorageService {
       .update(imageMetadata)
       .set({
         downloadStatus: 'downloading',
-        updatedAt: now.toISOString()
+        updatedAt: now
       })
       .where(eq(imageMetadata.id, imageId));
   }
@@ -137,10 +137,10 @@ export class ImageStorageService {
         retryCount: 0,
         lastError: null,
         accessCount: 1,
-        firstAccessedAt: now.toISOString(),
-        lastAccessedAt: now.toISOString(),
+        firstAccessedAt: now,
+        lastAccessedAt: now,
         nextRetryAt: null,
-        updatedAt: now.toISOString()
+        updatedAt: now
       })
       .where(eq(imageMetadata.id, imageId));
   }
@@ -155,7 +155,7 @@ export class ImageStorageService {
         retryCount: sql`${imageMetadata.retryCount} + 1`,
         lastError: message,
         nextRetryAt: null,
-        updatedAt: now.toISOString()
+        updatedAt: now
       })
       .where(eq(imageMetadata.id, imageId));
   }
@@ -164,14 +164,14 @@ export class ImageStorageService {
    * 记录访问统计
    */
   private async recordAccess(imageId: number) {
-    const now = new Date().toISOString();
+    const now = new Date();
 
     await db
       .update(imageMetadata)
       .set({
         accessCount: sql`${imageMetadata.accessCount} + 1`,
         lastAccessedAt: now,
-        firstAccessedAt: sql`COALESCE(${imageMetadata.firstAccessedAt}, ${now})`
+        firstAccessedAt: sql`COALESCE(${imageMetadata.firstAccessedAt}, now())`
       })
       .where(eq(imageMetadata.id, imageId));
   }
