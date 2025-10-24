@@ -1,16 +1,19 @@
 import crypto from 'crypto';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../shared/database/db';
-import { imageMetadata } from '../shared/database/schema';
+import { imageMetadata, creatorAccounts, videos } from '../shared/database/schema';
 import type { ImageMetadata } from '../shared/database/schema';
 import { imageDownloadService } from '../shared/services/ImageDownloadService';
 import type { UploadResult } from '../modules/openlist/types';
 import openlistConfig from '../config/openlist.config';
+import { createChildLogger } from '../shared/utils/logger';
 
 export type ImageAccessResult =
   | { type: 'openlist'; url: string }
   | { type: 'redirect'; url: string }
   | { type: 'file'; path: string };
+
+const logger = createChildLogger('ImageStorageService');
 
 export class ImageStorageService {
   /**
@@ -48,6 +51,7 @@ export class ImageStorageService {
 
       const storedOpenListUrl = this.extractOpenListRaw(metadata.localPath);
       if (storedOpenListUrl) {
+        await this.updateEntityUrl(type, entityId, storedOpenListUrl);
         return { type: 'openlist', url: storedOpenListUrl };
       }
 
@@ -72,7 +76,7 @@ export class ImageStorageService {
     const uploadResult = await this.downloadAndUpload(originalUrl, type, entityId);
 
     if (uploadResult) {
-      await this.markCompleted(metadata.id, uploadResult);
+      await this.markCompleted(metadata.id, uploadResult, type, entityId);
       return { type: 'openlist', url: uploadResult.url };
     }
 
@@ -125,7 +129,12 @@ export class ImageStorageService {
       .where(eq(imageMetadata.id, imageId));
   }
 
-  private async markCompleted(imageId: number, result: UploadResult) {
+  private async markCompleted(
+    imageId: number,
+    result: UploadResult,
+    type: 'avatar' | 'thumbnail',
+    entityId: number
+  ) {
     const now = new Date();
 
     await db
@@ -143,6 +152,8 @@ export class ImageStorageService {
         updatedAt: now
       })
       .where(eq(imageMetadata.id, imageId));
+
+    await this.updateEntityUrl(type, entityId, result.url);
   }
 
   private async markFailed(imageId: number, message: string) {
@@ -229,5 +240,47 @@ export class ImageStorageService {
 
   private isLocalPath(pathValue: string): boolean {
     return pathValue.startsWith('/') || pathValue.startsWith('./');
+  }
+
+  private async updateEntityUrl(type: 'avatar' | 'thumbnail', entityId: number, url: string) {
+    try {
+      if (type === 'avatar') {
+        const [record] = await db
+          .select({ avatarUrl: creatorAccounts.avatarUrl })
+          .from(creatorAccounts)
+          .where(eq(creatorAccounts.id, entityId))
+          .limit(1);
+
+        if (!record || record.avatarUrl === url) {
+          return;
+        }
+
+        await db
+          .update(creatorAccounts)
+          .set({ avatarUrl: url })
+          .where(eq(creatorAccounts.id, entityId));
+      } else {
+        const [record] = await db
+          .select({ thumbnailUrl: videos.thumbnailUrl })
+          .from(videos)
+          .where(eq(videos.id, entityId))
+          .limit(1);
+
+        if (!record || record.thumbnailUrl === url) {
+          return;
+        }
+
+        await db
+          .update(videos)
+          .set({ thumbnailUrl: url })
+          .where(eq(videos.id, entityId));
+      }
+    } catch (error) {
+      logger.warn('Failed to update entity image url', {
+        type,
+        entityId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 }

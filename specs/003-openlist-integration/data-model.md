@@ -7,7 +7,7 @@
 - `metadata` (json): 仍存放平台原始数据, 供提取备用封面。
 
 ### creator_accounts
-- `avatar_url` (text): 保存 OpenList raw_url 或外链, 与 `ImageDownloadService.downloadAvatar` 结果同步。
+- `avatar_url` (text): 保存 OpenList raw_url 或外链, 首次访问成功后会自动回写 raw_url。
 
 ### image_metadata
 用于跟踪单个 URL 的上传状态, 新字段含义如下:
@@ -23,9 +23,9 @@
 
 ## 数据写入流程摘要
 
-1. 爬虫获得外部 URL 后调用 `ImageDownloadService`。
-2. 成功上传时, 数据库字段保存 OpenList raw_url, `image_metadata.local_path` 同步为该 raw_url。
-3. 失败时, 字段保留外链, `download_status` 设为 `failed`, 接口访问时触发传统代理。
+1. 爬虫将平台返回的外部 URL 写入 `creator_accounts` / `videos`, 同时 `image_metadata` 记录 `pending` 状态。
+2. `/api/images` 首次访问时调用 `ImageDownloadService` 下载外链并上传到 OpenList。
+3. 上传成功后回写主表字段、更新 `image_metadata.local_path` 为 raw_url; 失败则保留外链并把状态置为 `failed`。
 
 ## 兼容策略
 

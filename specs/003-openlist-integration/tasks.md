@@ -10,10 +10,9 @@
 
 ## 2. 图片写入流程
 
-- [x] `ImageDownloadService.downloadAvatar` / `downloadThumbnail` 上传至 OpenList, 成功返回 raw_url, 失败保留原 URL
-- [x] 生成稳定文件名 (账号/视频标识 + 扩展名 或 URL hash)
-- [x] `ScraperManager` 使用新结果写入数据库字段
-- [x] `ImageStorageService` 维护 `image_metadata` 状态 (pending/downloading/completed/failed)
+- [x] 爬虫阶段保留平台返回的原始头像/封面 URL
+- [x] `ImageDownloadService` 支持按需下载+上传, 生成稳定文件名
+- [x] `ImageStorageService` 维护 `image_metadata` 状态并首次上传后回写数据库字段
 
 ## 3. 图片访问
 
@@ -24,7 +23,7 @@
 ## 4. 验证
 
 - [x] 手动确认浏览器访问不再触发图片下载弹窗
-- [x] 打通爬虫 → 上传 → 数据库存储 → `/api/images` 全链路
+- [x] 打通爬虫落库外链 → `/api/images` 首次访问触发上传 → 回写 raw_url 全链路
 - [x] 日志中可区分 `proxy=openlist` / `proxy=fallback`
 
 ## 5. 后续关注 (非阻塞)

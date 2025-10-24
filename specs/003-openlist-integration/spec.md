@@ -5,13 +5,13 @@
 
 ## 概述
 
-本规格描述我们已经落地的 OpenList 集成改造: 新的图片管线不再依赖本地代理路由, 所有头像与视频封面优先上传到 OpenList, 数据库存储可直接访问的 `raw_url`, 并通过统一的 `/api/images/:type/:id` 接口流式返回图片数据, 解决浏览器把缩略图当成附件下载的问题。
+本规格描述我们已经落地的 OpenList 集成改造: 爬虫阶段仅保存平台返回的原始图片 URL, 首次访问 `/api/images/:type/:id` 时由后端自动下载并上传到 OpenList, 成功后回写 `raw_url`, 统一走服务器流式返回, 彻底解决浏览器把缩略图当成附件下载的问题。
 
 ## 目标
 
-- 为爬虫与后台服务提供稳定的 OpenList 上传能力, 保持接口简单 (login / upload / getProxyUrl / download)。
-- 将 OpenList `raw_url` 作为我们自己的持久化地址, 与旧的外部 CDN URL 共存、可回退。
-- 替换原 `/api/openlist-proxy` 路由, 由 `/api/images/:type/:id` 直接判定是否需要流式转发 OpenList 资源, 避免浏览器下载行为。
+- 保持 OpenList 客户端接口简单 (login / upload / getProxyUrl / download)。
+- 爬虫只负责落库原始外链, 上传过程延迟到图片首次访问时自动完成。
+- 首次上传成功后回写 `raw_url`, 后续统一走 `/api/images/:type/:id` 流式返回。
 - 保留失败时的传统代理降级, 不新增批量迁移或后台清理任务。
 
 ## 非目标
@@ -27,57 +27,55 @@
 ┌───────────────┐                                ┌───────────────┐
 │ 爬虫拿到外部 URL │                                │ 爬虫拿到外部 URL │
 └──────┬────────┘                                └──────┬────────┘
-       │ 下载图片到内存                                    │ 下载图片到内存
+       │ 下载图片到内存                                    │ 直接写入外部 URL
        ▼                                                  ▼
 ┌───────────────┐                                ┌──────────────────────┐
-│ ImageDownload │ --(保存本地/返回原 URL)-->      │ ImageDownload + OpenList │
-└──────┬────────┘                                └──────┬──────────────────┘
-       │                                                  │ 上传成功? 返回 raw_url
-       │                                                  │ 上传失败? 返回原 URL
-       ▼                                                  ▼
-┌───────────────┐                                ┌──────────────────────┐
-│ 数据库存储外链 │                                │ 数据库存储 raw_url 或外链 │
+│ ImageDownload │ --(保存本地/返回原 URL)-->      │ image_metadata 标记 pending │
 └──────┬────────┘                                └──────┬──────────────────┘
        │                                                  │
 ┌──────▼────────┐                                ┌────────▼────────┐
-│ /api/images   │ --(重定向 old proxy)-->         │ /api/images   │ --(OpenList 流式或传统代理)--> 浏览器渲染
-└───────────────┘                                └──────────────────────┘
+│ /api/images   │ --(重定向 old proxy)-->         │ /api/images   │ -- 首次访问触发下载→上传 ──┐
+└───────────────┘                                └────────┬────────┘                          │
+                                                         │                                      ▼
+                                                         │ 上传成功回写 raw_url → 后续流式返回
+                                                         │ 上传失败继续走传统代理
 ```
 
 ## 用户故事
 
-### US1: 爬虫将图片托管到 OpenList (P1)
+### US1: 爬虫写入原始图片 URL (P1)
 
-**场景**: 爬虫抓取头像或封面时, 由 `ImageDownloadService` 下载原图并上传至 OpenList。
-
-**接受标准**:
-- 上传前自动登录, 401 时自动重登后重试一次。
-- 上传成功返回 `UploadResult.url` (raw_url), 写入数据库。
-- 上传失败或 OpenList 不可达时返回原始 URL, 并记录日志。
-
-### US2: `/api/images/:type/:id` 流式返回图片 (P1)
-
-**场景**: 前端通过统一接口获取图片, 不再出现附件下载弹窗。
+**场景**: 爬虫抓取账号或视频时，只保存平台返回的外链。
 
 **接受标准**:
-- 若数据库保存的是 OpenList raw_url, 后端拉取并设置正确的 `Content-Type` 与缓存头, 不带 `Content-Disposition`。
-- 若保存的是旧的代理路径或上传失败回退 URL, 继续按旧逻辑处理 (本地文件或传统代理)。
-- 出错时返回 JSON 错误响应而非挂起连接。
+- 不调用 OpenList API，不阻塞爬虫流程。
+- 数据库存储外链，供 `/api/images` 判断是否需要首次上传。
+- 记录抓取日志，排查缺图问题。
+
+### US2: `/api/images/:type/:id` 首次访问自动上传 (P1)
+
+**场景**: 前端通过统一接口访问图片，后端发现仍是外链时自动下载并上传到 OpenList。
+
+**接受标准**:
+- 自动登录 OpenList，401 时重登并重试一次。
+- 上传成功后回写 `creator_accounts` / `videos` 字段为 raw_url。
+- 设置正确的 `Content-Type`，不返回 `Content-Disposition`。
+- 上传失败时保留外链并返回传统代理。
 
 ### US3: 兼容既有数据 (P2)
 
 **场景**: 存量记录中仍可能存放原始 CDN URL 或旧的 `/api/openlist-proxy` 地址。
 
 **接受标准**:
-- `ImageStorageService` able to 解析 `/api/openlist-proxy?url=...` 并提取 raw_url。
-- 若字段为外链, 首次访问时触发上传任务; 上传失败则继续外链访问。
-- 访问成功后更新访问计数, 供后续统计使用。
+- `ImageStorageService` 能解析 `/api/openlist-proxy?url=...` 并提取 raw_url。
+- 若字段为外链, `/api/images` 首次访问时触发上传任务; 上传失败则继续外链访问。
+- 访问或上传成功后更新访问计数, 供后续统计使用。
 
 ## 功能需求
 
 - **FR-001**: 提供 `OpenListClient` 封装登录、上传、获取 raw_url、下载四个方法, 并在 401 时自动重登一次。
-- **FR-002**: `ImageDownloadService` 在头像/封面下载成功后调用 `OpenListClient.upload`, 生成带哈希的唯一文件名, 成功时返回 raw_url, 失败保留原 URL。
-- **FR-003**: `ImageStorageService` 使用 `image_metadata` 表追踪上传状态, 存储 OpenList raw_url, 并在需要时触发下载+上传流程。
+- **FR-002**: `ImageDownloadService` 仅在 `/api/images` 首次访问时触发下载+上传, 生成带哈希的唯一文件名, 成功时返回 raw_url, 失败保留原 URL。
+- **FR-003**: `ImageStorageService` 使用 `image_metadata` 表追踪上传状态, 上传成功后回写 `creator_accounts` / `videos` 字段, 并在后续访问中直接命中 raw_url。
 - **FR-004**: `/api/images/:type/:id` 根据 `ImageStorageService` 返回的结果, 在三种路径间抉择:
   1. OpenList raw_url → 服务器流式转发。
   2. 本地缓存文件 → 直接 `sendFile`。
@@ -88,7 +86,7 @@
 
 - OpenList 服务地址、账号、密码通过环境变量 (`OPENLIST_URL`、`OPENLIST_USERNAME`、`OPENLIST_PASSWORD`) 配置。
 - 单文件不超过 10MB, 不做流式分块上传。
-- 上传并发通过 `MAX_CONCURRENT_UPLOADS` 控制(默认 5), 防止爬虫批量上传时阻塞。
+- 保留 `MAX_CONCURRENT_UPLOADS` 环境变量供脚本或未来扩展使用 (当前爬虫不使用)。
 - 旧的 `/api/openlist-proxy` 路由已移除, 客户端只能通过 `/api/images` 访问。
 
 ## 成功标准
@@ -109,8 +107,8 @@
 ### 包含
 ✅ OpenListClient 基础能力 (login/upload/download/getProxyUrl)
 ✅ 401 自动重登 & 网络单次重试
-✅ `ImageDownloadService` 上传逻辑与稳定命名
-✅ `ImageStorageService` 元数据追踪与 raw_url 持久化
+✅ `ImageDownloadService` 支持按需下载+上传与稳定命名
+✅ `ImageStorageService` 元数据追踪、raw_url 回写与访问统计
 ✅ `/api/images/:type/:id` 流式/本地/代理三分支
 ✅ 结构化日志 (openlist / fallback)
 

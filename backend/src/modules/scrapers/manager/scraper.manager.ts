@@ -6,49 +6,12 @@ import { creatorAccounts, videos, platforms, type NewCreatorAccount, type NewVid
 import { eq } from 'drizzle-orm'
 import { db } from '../../../shared/database/db'
 import { TrackVideoChanges } from '../../../shared/decorators/track-video-changes.decorator'
-import { ImageDownloadService } from '../../../shared/services/ImageDownloadService'
-import openlistConfig from '../../../config/openlist.config'
-import type { UploadResult } from '../../openlist/types'
-
-type UploadOutcome = { uploadResult: UploadResult | null; error?: Error }
-
-function createConcurrencyLimiter(limit: number) {
-  const safeLimit = Math.max(1, Number.isFinite(limit) ? limit : 1)
-  const queue: Array<() => void> = []
-  let active = 0
-
-  const runNext = () => {
-    if (active >= safeLimit) return
-    const task = queue.shift()
-    if (!task) return
-    active += 1
-    task()
-  }
-
-  return <T>(fn: () => Promise<T>): Promise<T> =>
-    new Promise<T>((resolve, reject) => {
-      const execute = () => {
-        fn()
-          .then(resolve)
-          .catch(reject)
-          .finally(() => {
-            active -= 1
-            runNext()
-          })
-      }
-
-      queue.push(execute)
-      runNext()
-    })
-}
 
 /**
  * 爬虫管理器
  * 职责：处理数据抓取业务逻辑，协调爬虫和数据库存储
  */
 export class ScraperManager {
-  private imageDownloadService = new ImageDownloadService()
-  private readonly scheduleUpload = createConcurrencyLimiter(openlistConfig.maxConcurrentUploads ?? 3)
 
   /**
    * 根据URL抓取创作者信息并存储到数据库
@@ -112,39 +75,8 @@ export class ScraperManager {
       platformId: platformRecord.id
     })
 
-    // 7.5 下载并上传头像到OpenList（并发受限）
-    const originalAvatarUrl = profileDbMapping.avatarUrl
-    let avatarUrl = originalAvatarUrl
-    const avatarUploadTask: Promise<UploadOutcome> | null = originalAvatarUrl
-      ? this.scheduleUpload(async () => {
-          try {
-            const uploadResult = await this.imageDownloadService.downloadAvatar(
-              originalAvatarUrl,
-              profileDbMapping.platformUserId
-            )
-            return { uploadResult }
-          } catch (error) {
-            return { uploadResult: null, error: error as Error }
-          }
-        })
-      : null
-
-    if (avatarUploadTask) {
-      const { uploadResult, error } = await avatarUploadTask
-      if (uploadResult) {
-        avatarUrl = uploadResult.url
-        logger.info('Avatar uploaded to OpenList', {
-          originalUrl: originalAvatarUrl,
-          openlistUrl: uploadResult.url
-        })
-      } else if (error) {
-        logger.warn('Failed to upload avatar to OpenList, using original URL', {
-          avatarUrl: originalAvatarUrl,
-          error: error.message
-        })
-        // 失败时继续使用原URL
-      }
-    }
+    // 7.5 直接使用原始头像URL，延迟到访问时再触发上传
+    const avatarUrl = profileDbMapping.avatarUrl
 
     // 8. 检查创作者账号是否已存在
     const existingAccount = await db
@@ -405,51 +337,9 @@ export class ScraperManager {
       newData: any
     }> = []
 
-    const videoTasks = standardizedVideos.map(standardizedVideo => {
+    for (const standardizedVideo of standardizedVideos) {
       const videoDbMapping = dataMapper.mapVideoToDatabase(standardizedVideo, accountId)
-      const originalThumbnailUrl = videoDbMapping.thumbnailUrl
-
-      const uploadTask: Promise<UploadOutcome> | null = originalThumbnailUrl
-        ? this.scheduleUpload(async () => {
-            try {
-              const uploadResult = await this.imageDownloadService.downloadThumbnail(
-                originalThumbnailUrl,
-                videoDbMapping.platformVideoId
-              )
-              return { uploadResult }
-            } catch (error) {
-              return { uploadResult: null, error: error as Error }
-            }
-          })
-        : null
-
-      return {
-        videoDbMapping,
-        uploadTask,
-        originalThumbnailUrl
-      }
-    })
-
-    for (const { videoDbMapping, uploadTask, originalThumbnailUrl } of videoTasks) {
-      let thumbnailUrl = originalThumbnailUrl
-
-      if (uploadTask) {
-        const { uploadResult, error } = await uploadTask
-        if (uploadResult) {
-          thumbnailUrl = uploadResult.url
-          logger.info('Thumbnail uploaded to OpenList', {
-            originalUrl: originalThumbnailUrl,
-            openlistUrl: uploadResult.url,
-            platformVideoId: videoDbMapping.platformVideoId
-          })
-        } else if (error) {
-          logger.warn('Failed to upload thumbnail to OpenList, using original URL', {
-            thumbnailUrl: originalThumbnailUrl,
-            platformVideoId: videoDbMapping.platformVideoId,
-            error: error.message
-          })
-        }
-      }
+      const thumbnailUrl = videoDbMapping.thumbnailUrl
 
       const existingVideo = await db
         .select()

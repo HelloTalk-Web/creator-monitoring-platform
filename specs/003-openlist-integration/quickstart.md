@@ -31,19 +31,19 @@ console.log(result.url); // 应该是 OpenList raw_url
 ## 3. 爬虫联调
 
 1. 运行一次抓取命令或触发已有爬虫入口。
-2. 在数据库中确认 `creator_accounts.avatar_url` / `videos.thumbnail_url` 已更新为 OpenList raw_url。
-3. 查看 `image_metadata` 表, 对应记录的 `download_status` 应为 `completed`。
+2. 验证数据库中只写入了平台外链 (raw_url 暂未出现属正常)。
+3. 查看 `image_metadata` 表, 新记录应处于 `pending` 状态。
 
 ## 4. 接口验证
 
-直接用浏览器或 curl 访问统一接口:
+直接用浏览器或 curl 访问统一接口(首次访问会触发上传):
 
 ```bash
 curl -I "http://localhost:8000/api/images/thumbnail/8610"
 ```
 
-- 响应应返回 `200 OK` 与 `Content-Type: image/*`
-- 不应包含 `Content-Disposition: attachment`
+- 首次访问可能稍慢, 成功后 `image_metadata` 应更新为 `completed`
+- 再次请求应返回 `200 OK` 与 `Content-Type: image/*`, 且不包含 `Content-Disposition`
 
 ## 5. 降级测试
 

@@ -17,7 +17,7 @@
    ```
 
 4. **访问接口**: 打开 `http://localhost:8000/api/images/thumbnail/{id}`
-   - 图片应直接显示, 不再触发下载
+   - 首次访问触发下载+上传, 之后图片应直接显示、不再触发下载
 
 5. **日志检查**: 在后端日志中查找 `proxy=openlist` 或 `proxy=fallback` 标记, 确认两条路径都健壮
 

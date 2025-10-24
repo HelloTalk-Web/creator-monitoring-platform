@@ -9,7 +9,7 @@
 交付内容拆成三层:
 
 1. **OpenListClient 基础层** – 提供登录、上传、下载、获取 raw_url 的最小封装。
-2. **图片入库流程** – 爬虫下载后立即上传, 数据库存储 OpenList raw_url 并保留降级路径。
+2. **图片入库流程** – 爬虫只存外部 URL, `/api/images` 首次访问时自动上传并回写 raw_url。
 3. **统一访问接口** – `/api/images/:type/:id` 根据存储结果决定流式转发或传统代理。
 
 ## 技术上下文
@@ -31,9 +31,9 @@
 
 | 步骤 | 描述 | 文件 |
 | --- | --- | --- |
-| P2-1 | `ImageDownloadService` 下载外部图片后上传到 OpenList, 根据账号/视频标识生成稳定文件名 | `backend/src/shared/services/ImageDownloadService.ts` |
-| P2-2 | `ScraperManager` 使用新的返回值更新 `avatarUrl`、`thumbnailUrl`, 上传失败则保留外部 URL 并记录日志 | `backend/src/modules/scrapers/manager/scraper.manager.ts` |
-| P2-3 | `ImageStorageService` 以 `image_metadata` 跟踪下载状态、访问次数, 存储 OpenList raw_url | `backend/src/services/ImageStorageService.ts` |
+| P2-1 | `ScraperManager` 仅保存平台返回的头像/封面 URL, 不做即时上传 | `backend/src/modules/scrapers/manager/scraper.manager.ts` |
+| P2-2 | `ImageDownloadService` 支持按需下载+上传, 根据实体生成稳定文件名 | `backend/src/shared/services/ImageDownloadService.ts` |
+| P2-3 | `ImageStorageService` 维护 `image_metadata`, 首次上传成功后回写数据库字段 | `backend/src/services/ImageStorageService.ts` |
 
 ## Phase 3 · 图片访问
 
