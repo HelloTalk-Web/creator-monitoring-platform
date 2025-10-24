@@ -61,6 +61,7 @@ interface ApiResponse<T> {
 }
 
 const VIDEO_LIMIT_OPTIONS = [10, 20, 30, 50, 100, 200, 300, 500]
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 const API_BASE_URL = resolveApiBaseUrl()
 
 export default function HomePage() {
@@ -71,7 +72,7 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [platformFilter, setPlatformFilter] = useState<string>("all")
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(20)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [newAccountUrl, setNewAccountUrl] = useState("")
   const [videoLimit, setVideoLimit] = useState<string>("auto")
@@ -318,6 +319,14 @@ export default function HomePage() {
 
     setBatchProcessing(false)
     fetchAccounts()
+  }
+
+  const handlePageSizeChange = (value: string) => {
+    const size = Number(value)
+    if (!Number.isNaN(size) && size > 0) {
+      setPageSize(size)
+      setCurrentPage(1)
+    }
   }
 
   const handleToggleAccount = (accountId: number, checked: boolean | string) => {
@@ -568,6 +577,19 @@ export default function HomePage() {
                 {!platformsLoading && platforms.map((platform) => (
                   <SelectItem key={platform.id} value={platform.name}>
                     {platform.displayName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="每页数量" />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map(option => (
+                  <SelectItem key={option} value={String(option)}>
+                    每页 {option} 条
                   </SelectItem>
                 ))}
               </SelectContent>
