@@ -43,6 +43,13 @@
 | P3-2 | 删除历史 `/api/openlist-proxy` 路由, 避免重复接口 | `backend/src/index.ts` |
 | P3-3 | 在成功与降级分支写结构化日志, 便于后续监控 | `backend/src/routes/images.ts` |
 
+## Phase 4 · 账号批量操作
+
+| 步骤 | 描述 | 文件 |
+| --- | --- | --- |
+| P4-1 | 新增批量重新爬取接口, 支持一次抓取多个账号 | `backend/src/modules/scrapers/controller/scraper.controller.ts`, ` routes.ts` |
+| P4-2 | 账号管理页提供多选与“批量重新爬取”按钮 | `frontend/app/accounts/page.tsx` |
+
 ## 验证与测试
 
 - 单元测试: Mock OpenList API 检查 401 自动重登与重试次数。

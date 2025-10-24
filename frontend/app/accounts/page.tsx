@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { resolveApiBaseUrl } from "@/lib/utils"
 import { AvatarImage } from "@/components/common/Image"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface Account {
   id: number
@@ -86,6 +87,8 @@ export default function HomePage() {
   const debounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const [batchResults, setBatchResults] = useState<Array<{ url: string; success: boolean; message: string }>>([])
   const [batchProcessing, setBatchProcessing] = useState(false)
+  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([])
+  const [isBatchRefreshing, setIsBatchRefreshing] = useState(false)
 
   // 计算总页数
   const totalPages = Math.ceil(total / pageSize)
@@ -135,6 +138,7 @@ export default function HomePage() {
         if (response.data.success) {
           setAccounts(response.data.data.accounts)
           setTotal(response.data.data.pagination.total)
+          setSelectedAccountIds(prev => prev.filter(id => response.data.data.accounts.some(account => account.id === id)))
         }
       } catch (error) {
         console.error("获取账号列表失败:", error)
@@ -168,6 +172,7 @@ export default function HomePage() {
       if (response.data.success) {
         setAccounts(response.data.data.accounts)
         setTotal(response.data.data.pagination.total)
+        setSelectedAccountIds(prev => prev.filter(id => response.data.data.accounts.some(account => account.id === id)))
       }
     } catch (error) {
       console.error("获取账号列表失败:", error)
@@ -215,6 +220,7 @@ export default function HomePage() {
 
       if (response.data.success) {
         fetchAccounts()
+        setSelectedAccountIds(prev => prev.filter(accountId => accountId !== id))
       }
     } catch (error) {
       console.error("删除账号失败:", error)
@@ -313,6 +319,75 @@ export default function HomePage() {
     setBatchProcessing(false)
     fetchAccounts()
   }
+
+  const handleToggleAccount = (accountId: number, checked: boolean | string) => {
+    setSelectedAccountIds(prev => {
+      if (checked === true) {
+        if (prev.includes(accountId)) {
+          return prev
+        }
+        return [...prev, accountId]
+      }
+      return prev.filter(id => id !== accountId)
+    })
+  }
+
+  const handleToggleAllVisible = (checked: boolean | string) => {
+    const visibleIds = accounts.map(account => account.id)
+    if (visibleIds.length === 0) return
+
+    if (checked === true) {
+      setSelectedAccountIds(prev => Array.from(new Set([...prev, ...visibleIds])))
+    } else {
+      setSelectedAccountIds(prev => prev.filter(id => !visibleIds.includes(id)))
+    }
+  }
+
+  const handleBatchRefresh = async () => {
+    if (selectedAccountIds.length === 0) {
+      alert('请先选择需要重新爬取的账号')
+      return
+    }
+
+    if (!confirm(`确认要为 ${selectedAccountIds.length} 个账号批量重新爬取数据吗？`)) {
+      return
+    }
+
+    try {
+      setIsBatchRefreshing(true)
+      const limitValue = videoLimit === "auto" ? undefined : Number(videoLimit)
+      const payload: Record<string, unknown> = { accountIds: selectedAccountIds }
+      if (limitValue !== undefined && !Number.isNaN(limitValue)) {
+        payload.videoLimit = limitValue
+      }
+
+      const response = await axios.post<ApiResponse<{
+        successCount: number
+        failCount: number
+        total: number
+        results: Array<{ accountId: number; success: boolean; message?: string }>
+      }>>(
+        `${API_BASE_URL}/api/scrape/refresh/accounts`,
+        payload
+      )
+
+      if (response.data.success) {
+        const { successCount, failCount } = response.data.data
+        alert(`批量重新爬取完成！\n成功: ${successCount} 个\n失败: ${failCount} 个`)
+        setSelectedAccountIds([])
+        await fetchAccounts()
+      } else {
+        alert(response.data.error?.message || '批量重新爬取失败')
+      }
+    } catch (error) {
+      console.error('批量重新爬取失败:', error)
+      alert('批量重新爬取失败，请稍后再试')
+    } finally {
+      setIsBatchRefreshing(false)
+    }
+  }
+
+  const allVisibleSelected = accounts.length > 0 && accounts.every(account => selectedAccountIds.includes(account.id))
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -511,6 +586,20 @@ export default function HomePage() {
             </Button>
           </div>
 
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-muted-foreground">
+              已选 {selectedAccountIds.length} 个账号
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBatchRefresh}
+              disabled={selectedAccountIds.length === 0 || isBatchRefreshing}
+            >
+              {isBatchRefreshing ? "重新爬取中..." : `批量重新爬取${selectedAccountIds.length > 0 ? ` (${selectedAccountIds.length})` : ""}`}
+            </Button>
+          </div>
+
           {/* 账号表格 */}
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">加载中...</div>
@@ -524,6 +613,14 @@ export default function HomePage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[40px]">
+                        <Checkbox
+                          checked={allVisibleSelected}
+                          onCheckedChange={handleToggleAllVisible}
+                          disabled={accounts.length === 0}
+                          aria-label="选择当前页所有账号"
+                        />
+                      </TableHead>
                       <TableHead className="w-[50px]">ID</TableHead>
                       <TableHead className="w-[250px]">账号信息</TableHead>
                       <TableHead className="w-[100px]">平台</TableHead>
@@ -533,10 +630,17 @@ export default function HomePage() {
                       <TableHead className="w-[150px] text-right">操作</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {accounts.map((account) => (
-                      <TableRow key={account.id}>
-                        <TableCell className="font-medium">{account.id}</TableCell>
+                    <TableBody>
+                      {accounts.map((account) => (
+                        <TableRow key={account.id}>
+                          <TableCell className="w-[40px]">
+                            <Checkbox
+                              checked={selectedAccountIds.includes(account.id)}
+                              onCheckedChange={(checked) => handleToggleAccount(account.id, checked)}
+                              aria-label={`选择账号 ${account.displayName}`}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{account.id}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <AvatarImage

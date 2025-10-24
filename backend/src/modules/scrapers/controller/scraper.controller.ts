@@ -1,7 +1,10 @@
 import { Request, Response } from 'express'
+import { inArray } from 'drizzle-orm'
 import { logger } from '../../../shared/utils/logger'
 import { scraperManager } from '../manager/scraper.manager'
 import { apiKeyService } from '../../../shared/infrastructure/api-key.service'
+import { db } from '../../../shared/database/db'
+import { creatorAccounts } from '../../../shared/database/schema'
 
 function serializeBigInt(value: unknown): any {
   if (typeof value === 'bigint') {
@@ -323,6 +326,116 @@ export class ScraperController {
         error: {
           code: 'INTERNAL_ERROR',
           message: '批量抓取失败'
+        }
+      })
+    }
+  }
+
+  /**
+   * 批量重新爬取指定账号
+   */
+  async refreshAccounts(req: Request, res: Response) {
+    try {
+      const { accountIds, videoLimit } = req.body as { accountIds?: unknown; videoLimit?: unknown }
+
+      if (!Array.isArray(accountIds) || accountIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'accountIds 必须是非空数组'
+          }
+        })
+      }
+
+      const normalizedIds = accountIds
+        .map(id => Number(id))
+        .filter(id => Number.isInteger(id) && id > 0)
+
+      if (normalizedIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'accountIds 必须是数字ID'
+          }
+        })
+      }
+
+      const accounts = await db
+        .select({
+          id: creatorAccounts.id,
+          profileUrl: creatorAccounts.profileUrl,
+          userId: creatorAccounts.userId
+        })
+        .from(creatorAccounts)
+        .where(inArray(creatorAccounts.id, normalizedIds))
+
+      if (accounts.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: '未找到任何匹配的账号'
+          }
+        })
+      }
+
+      const limit = parseVideoLimit(videoLimit)
+      const results: Array<{ accountId: number; success: boolean; message?: string }> = []
+
+      for (const account of accounts) {
+        try {
+          await scraperManager.scrapeAndStoreCreatorAccount({
+            url: account.profileUrl,
+            userId: account.userId,
+            videoLimit: limit
+          })
+
+          results.push({
+            accountId: account.id,
+            success: true
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '未知错误'
+          logger.error('Failed to refresh account', {
+            accountId: account.id,
+            error: message
+          })
+
+          results.push({
+            accountId: account.id,
+            success: false,
+            message
+          })
+        }
+      }
+
+      const successCount = results.filter(item => item.success).length
+      const failCount = results.length - successCount
+      const missingIds = normalizedIds.filter(id => !accounts.some(account => account.id === id))
+
+      res.json({
+        success: true,
+        data: {
+          successCount,
+          failCount,
+          total: normalizedIds.length,
+          results,
+          missingIds
+        }
+      })
+    } catch (error) {
+      logger.error('Failed to refresh accounts', {
+        body: req.body,
+        error: (error as Error).message
+      })
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '批量重新爬取失败'
         }
       })
     }

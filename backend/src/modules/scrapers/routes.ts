@@ -19,6 +19,9 @@ router.post('/complete', scraperController.scrapeComplete.bind(scraperController
 // 批量抓取
 router.post('/batch', scraperController.batchScrape.bind(scraperController))
 
+// 批量重新爬取账号
+router.post('/refresh/accounts', scraperController.refreshAccounts.bind(scraperController))
+
 // 更新单个视频
 router.post('/update-video', scraperController.updateVideo.bind(scraperController))
 
