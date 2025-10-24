@@ -5,14 +5,7 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   distDir: 'out',
 
-  // 实验性功能配置
-  experimental: {
-    allowedDevOrigins: [
-      'https://social.hellotalk.xyz',
-      'http://localhost:4000',
-      'http://172.16.3.212:4000'
-    ]
-  },
+  // 实验性功能配置（移除 allowedDevOrigins，避免 TS 报错）
 
   // Turbopack 配置（新版本语法）
   turbopack: {
@@ -45,6 +38,19 @@ const nextConfig: NextConfig = {
   // 确保静态导出的配置优化
   poweredByHeader: false,
   generateEtags: false,
+
+  // 开发环境 API 代理：将 /api/* 转发到本机后端 8000
+  async rewrites() {
+    if (process.env.NODE_ENV === 'development') {
+      return [
+        {
+          source: '/api/:path*',
+          destination: 'http://localhost:8000/api/:path*',
+        },
+      ]
+    }
+    return []
+  },
 
   // Environment variables
   env: {
