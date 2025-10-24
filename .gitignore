@@ -85,6 +85,9 @@ temp/
 *.swo
 *~
 
+# Agent artifacts (credentials, tokens)
+.codex/
+
 # OS generated files
 .DS_Store
 .DS_Store?
