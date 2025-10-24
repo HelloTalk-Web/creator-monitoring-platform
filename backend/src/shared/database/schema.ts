@@ -152,7 +152,7 @@ export const imageMetadata = pgTable('image_metadata', {
   urlHash: varchar('url_hash', { length: 32 }).notNull().unique(), // URL的MD5哈希 (快速查找)
 
   // 存储信息
-  localPath: text('local_path'), // 本地文件路径
+  localPath: text('local_path'), // 存储URL (可能是OpenList代理URL或本地路径)
   fileSize: bigint('file_size', { mode: 'number' }), // 文件大小(字节)
   mimeType: varchar('mime_type', { length: 50 }), // MIME类型
 

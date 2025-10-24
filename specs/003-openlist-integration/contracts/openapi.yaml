@@ -1,0 +1,97 @@
+openapi: 3.0.3
+info:
+  title: Images API - OpenList Integration
+  version: 1.0.0
+  description: >-
+    Unified image access endpoint. Streams OpenList raw_url when available,
+    otherwise falls back to local cache or legacy proxy.
+servers:
+  - url: http://localhost:8000
+    description: Local development
+paths:
+  /api/images/{type}/{id}:
+    get:
+      summary: Fetch image for account or video
+      description: |
+        Returns the requested avatar or thumbnail. When the database stores an
+        OpenList raw_url the API streams the image without a Content-Disposition
+        header. On failure it falls back to the legacy proxy.
+      tags: [Images]
+      parameters:
+        - in: path
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [avatar, thumbnail]
+          description: Requested entity type
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Account or video identifier
+      responses:
+        '200':
+          description: Image streamed successfully
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '302':
+          description: Fallback to legacy proxy
+        '404':
+          description: Entity not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/images/stats:
+    get:
+      summary: Image metadata statistics
+      description: Returns counts of pending/completed/failed records stored in image_metadata.
+      tags: [Images]
+      responses:
+        '200':
+          description: Statistics payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsResponse'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+    StatsResponse:
+      type: object
+      properties:
+        totalImages:
+          type: integer
+        byStatus:
+          type: object
+          additionalProperties:
+            type: integer
+        cacheHitRate:
+          type: number
+          format: float
+        lastUpdated:
+          type: string
+          format: date-time

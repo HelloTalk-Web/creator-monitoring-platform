@@ -6,12 +6,50 @@ import { creatorAccounts, videos, platforms, type NewCreatorAccount, type NewVid
 import { eq } from 'drizzle-orm'
 import { db } from '../../../shared/database/db'
 import { TrackVideoChanges } from '../../../shared/decorators/track-video-changes.decorator'
+import { ImageDownloadService } from '../../../shared/services/ImageDownloadService'
+import openlistConfig from '../../../config/openlist.config'
+import type { UploadResult } from '../../openlist/types'
+
+type UploadOutcome = { uploadResult: UploadResult | null; error?: Error }
+
+function createConcurrencyLimiter(limit: number) {
+  const safeLimit = Math.max(1, Number.isFinite(limit) ? limit : 1)
+  const queue: Array<() => void> = []
+  let active = 0
+
+  const runNext = () => {
+    if (active >= safeLimit) return
+    const task = queue.shift()
+    if (!task) return
+    active += 1
+    task()
+  }
+
+  return <T>(fn: () => Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const execute = () => {
+        fn()
+          .then(resolve)
+          .catch(reject)
+          .finally(() => {
+            active -= 1
+            runNext()
+          })
+      }
+
+      queue.push(execute)
+      runNext()
+    })
+}
 
 /**
  * 爬虫管理器
  * 职责：处理数据抓取业务逻辑，协调爬虫和数据库存储
  */
 export class ScraperManager {
+  private imageDownloadService = new ImageDownloadService()
+  private readonly scheduleUpload = createConcurrencyLimiter(openlistConfig.maxConcurrentUploads ?? 3)
+
   /**
    * 根据URL抓取创作者信息并存储到数据库
    */
@@ -74,6 +112,40 @@ export class ScraperManager {
       platformId: platformRecord.id
     })
 
+    // 7.5 下载并上传头像到OpenList（并发受限）
+    const originalAvatarUrl = profileDbMapping.avatarUrl
+    let avatarUrl = originalAvatarUrl
+    const avatarUploadTask: Promise<UploadOutcome> | null = originalAvatarUrl
+      ? this.scheduleUpload(async () => {
+          try {
+            const uploadResult = await this.imageDownloadService.downloadAvatar(
+              originalAvatarUrl,
+              profileDbMapping.platformUserId
+            )
+            return { uploadResult }
+          } catch (error) {
+            return { uploadResult: null, error: error as Error }
+          }
+        })
+      : null
+
+    if (avatarUploadTask) {
+      const { uploadResult, error } = await avatarUploadTask
+      if (uploadResult) {
+        avatarUrl = uploadResult.url
+        logger.info('Avatar uploaded to OpenList', {
+          originalUrl: originalAvatarUrl,
+          openlistUrl: uploadResult.url
+        })
+      } else if (error) {
+        logger.warn('Failed to upload avatar to OpenList, using original URL', {
+          avatarUrl: originalAvatarUrl,
+          error: error.message
+        })
+        // 失败时继续使用原URL
+      }
+    }
+
     // 8. 检查创作者账号是否已存在
     const existingAccount = await db
       .select()
@@ -94,7 +166,7 @@ export class ScraperManager {
           username: profileDbMapping.username,
           displayName: profileDbMapping.displayName,
           profileUrl: profileDbMapping.profileUrl,
-          avatarUrl: profileDbMapping.avatarUrl,
+          avatarUrl: avatarUrl, // 使用OpenList URL
           bio: profileDbMapping.bio,
           followerCount: profileDbMapping.followerCount,
           followingCount: profileDbMapping.followingCount,
@@ -121,7 +193,7 @@ export class ScraperManager {
         username: profileDbMapping.username,
         displayName: profileDbMapping.displayName,
         profileUrl: profileDbMapping.profileUrl,
-        avatarUrl: profileDbMapping.avatarUrl,
+        avatarUrl: avatarUrl, // 使用OpenList URL
         bio: profileDbMapping.bio,
         followerCount: profileDbMapping.followerCount,
         followingCount: profileDbMapping.followingCount,
@@ -333,11 +405,52 @@ export class ScraperManager {
       newData: any
     }> = []
 
-    for (const standardizedVideo of standardizedVideos) {
-      // 使用DataMapper将标准化视频数据转换为数据库格式
+    const videoTasks = standardizedVideos.map(standardizedVideo => {
       const videoDbMapping = dataMapper.mapVideoToDatabase(standardizedVideo, accountId)
+      const originalThumbnailUrl = videoDbMapping.thumbnailUrl
 
-      // 检查视频是否已存在
+      const uploadTask: Promise<UploadOutcome> | null = originalThumbnailUrl
+        ? this.scheduleUpload(async () => {
+            try {
+              const uploadResult = await this.imageDownloadService.downloadThumbnail(
+                originalThumbnailUrl,
+                videoDbMapping.platformVideoId
+              )
+              return { uploadResult }
+            } catch (error) {
+              return { uploadResult: null, error: error as Error }
+            }
+          })
+        : null
+
+      return {
+        videoDbMapping,
+        uploadTask,
+        originalThumbnailUrl
+      }
+    })
+
+    for (const { videoDbMapping, uploadTask, originalThumbnailUrl } of videoTasks) {
+      let thumbnailUrl = originalThumbnailUrl
+
+      if (uploadTask) {
+        const { uploadResult, error } = await uploadTask
+        if (uploadResult) {
+          thumbnailUrl = uploadResult.url
+          logger.info('Thumbnail uploaded to OpenList', {
+            originalUrl: originalThumbnailUrl,
+            openlistUrl: uploadResult.url,
+            platformVideoId: videoDbMapping.platformVideoId
+          })
+        } else if (error) {
+          logger.warn('Failed to upload thumbnail to OpenList, using original URL', {
+            thumbnailUrl: originalThumbnailUrl,
+            platformVideoId: videoDbMapping.platformVideoId,
+            error: error.message
+          })
+        }
+      }
+
       const existingVideo = await db
         .select()
         .from(videos)
@@ -345,10 +458,8 @@ export class ScraperManager {
         .limit(1)
 
       if (existingVideo.length > 0) {
-        // 保存旧数据用于decorator
         const oldVideo = existingVideo[0]
 
-        // 更新现有视频
         await db
           .update(videos)
           .set({
@@ -356,7 +467,7 @@ export class ScraperManager {
             description: videoDbMapping.description,
             videoUrl: videoDbMapping.videoUrl,
             pageUrl: videoDbMapping.pageUrl,
-            thumbnailUrl: videoDbMapping.thumbnailUrl,
+            thumbnailUrl,
             duration: videoDbMapping.duration,
             tags: videoDbMapping.tags,
             viewCount: videoDbMapping.viewCount,
@@ -365,11 +476,10 @@ export class ScraperManager {
             shareCount: videoDbMapping.shareCount,
             saveCount: videoDbMapping.saveCount,
             lastUpdatedAt: new Date(),
-            metadata: videoDbMapping.metadata // 存储原始视频数据
+            metadata: videoDbMapping.metadata
           })
           .where(eq(videos.id, existingVideo[0].id))
 
-        // 收集变更信息供decorator使用
         videoUpdates.push({
           videoId: oldVideo.id,
           oldData: {
@@ -388,7 +498,6 @@ export class ScraperManager {
 
         updatedCount++
       } else {
-        // 创建新视频
         const newVideo: NewVideo = {
           accountId: videoDbMapping.accountId,
           platformVideoId: videoDbMapping.platformVideoId,
@@ -396,7 +505,7 @@ export class ScraperManager {
           description: videoDbMapping.description,
           videoUrl: videoDbMapping.videoUrl,
           pageUrl: videoDbMapping.pageUrl,
-          thumbnailUrl: videoDbMapping.thumbnailUrl,
+          thumbnailUrl,
           duration: videoDbMapping.duration,
           publishedAt: videoDbMapping.publishedAt,
           tags: videoDbMapping.tags,
@@ -407,7 +516,7 @@ export class ScraperManager {
           saveCount: videoDbMapping.saveCount,
           firstScrapedAt: videoDbMapping.firstScrapedAt || new Date(),
           lastUpdatedAt: videoDbMapping.lastUpdatedAt || new Date(),
-          metadata: videoDbMapping.metadata // 存储原始视频数据
+          metadata: videoDbMapping.metadata
         }
 
         await db.insert(videos).values(newVideo)

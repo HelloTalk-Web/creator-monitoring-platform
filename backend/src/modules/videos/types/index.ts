@@ -19,6 +19,7 @@ export interface VideoQueryParams {
   platformVideoId?: string
   title?: string
   tags?: string[]
+  platformName?: string
   publishedAfter?: string
   publishedBefore?: string
   minViewCount?: number

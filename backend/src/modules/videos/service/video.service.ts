@@ -25,6 +25,7 @@ export class VideoService {
       platformVideoId,
       title,
       tags,
+      platformName,
       publishedAfter,
       publishedBefore,
       minViewCount,
@@ -52,6 +53,11 @@ export class VideoService {
 
     if (title) {
       conditions.push(like(videos.title, `%${title}%`))
+    }
+
+    // 按平台名称过滤
+    if (platformName) {
+      conditions.push(eq(platforms.name, platformName))
     }
 
     // 按标签过滤：检查tags数组中是否包含指定标签
@@ -111,10 +117,12 @@ export class VideoService {
     const sortDirection = sortOrder === 'asc' ? asc : desc
 
     try {
-      // 获取总数
+      // 获取总数 (需要包含JOIN以支持平台筛选)
       const totalCountResult = await db
         .select({ count: count() })
         .from(videos)
+        .leftJoin(creatorAccounts, eq(videos.accountId, creatorAccounts.id))
+        .leftJoin(platforms, eq(creatorAccounts.platformId, platforms.id))
         .where(whereClause)
 
       const total = Number(totalCountResult[0].count)

@@ -1,36 +1,17 @@
-import fs from 'fs'
 import path from 'path'
 import axios from 'axios'
+import crypto from 'crypto'
+import { openlistClient } from '../../modules/openlist'
+import type { OpenListError, UploadResult } from '../../modules/openlist/types'
 import { logger } from '../utils/logger'
 
 /**
  * 图片下载服务
- * 负责从各个平台下载图片并保存到本地
+ * 负责从各个平台下载图片并上传到OpenList存储
  */
 export class ImageDownloadService {
-  private readonly baseImageDir: string
-  private readonly avatarDir: string
-  private readonly thumbnailDir: string
-
-  constructor(baseDir: string = './static/images') {
-    this.baseImageDir = baseDir
-    this.avatarDir = path.join(baseDir, 'avatars')
-    this.thumbnailDir = path.join(baseDir, 'thumbnails')
-
-    // 确保目录存在
-    this.ensureDirectories()
-  }
-
-  /**
-   * 确保目录存在
-   */
-  private ensureDirectories(): void {
-    [this.baseImageDir, this.avatarDir, this.thumbnailDir].forEach(dir => {
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true })
-      }
-    })
-  }
+  private readonly avatarRemotePrefix = '/images/avatars'
+  private readonly thumbnailRemotePrefix = '/images/thumbnails'
 
   /**
    * 获取平台特定的请求头
@@ -75,23 +56,80 @@ export class ImageDownloadService {
   /**
    * 生成本地文件名
    */
-  private generateFileName(url: string, entityId: number, prefix: string): string {
+  private generateFileName(url: string, entityKey: number | string, prefix: string): string {
     try {
-      // 从URL中提取文件扩展名
       const urlObj = new URL(url)
       const pathname = urlObj.pathname
       let ext = path.extname(pathname).split('?')[0].toLowerCase() || '.jpg'
 
-      // 如果没有有效的扩展名，使用jpg
       if (!ext || ext === '.') {
         ext = '.jpg'
       }
 
-      return `${prefix}_${entityId}${ext}`
+      const uniqueKey = this.getUniqueKey(url, entityKey)
+      return `${prefix}_${uniqueKey}${ext}`
     } catch (error) {
       logger.warn(`无法从URL提取扩展名: ${url}, 使用默认.jpg`)
-      return `${prefix}_${entityId}.jpg`
+      const uniqueKey = this.getUniqueKey(url, entityKey)
+      return `${prefix}_${uniqueKey}.jpg`
     }
+  }
+
+  private getUniqueKey(url: string, entityKey: number | string): string {
+    if (typeof entityKey === 'number' && Number.isFinite(entityKey) && entityKey > 0) {
+      return String(entityKey)
+    }
+
+    if (typeof entityKey === 'string' && entityKey.trim().length > 0) {
+      return crypto.createHash('md5').update(entityKey).digest('hex').slice(0, 16)
+    }
+
+    return crypto.createHash('md5').update(url).digest('hex').slice(0, 16)
+  }
+
+  private buildRemotePath(prefix: string, fileName: string): string {
+    const normalizedPrefix = prefix.endsWith('/')
+      ? prefix.slice(0, -1)
+      : prefix
+
+    const withLeadingSlash = normalizedPrefix.startsWith('/')
+      ? normalizedPrefix
+      : `/${normalizedPrefix}`
+
+    return `${withLeadingSlash}/${fileName}`.replace(/\/\/+/g, '/')
+  }
+
+  private async uploadToOpenList(
+    fileBuffer: Buffer,
+    remotePath: string,
+    context: { entityId: number | string; type: 'avatar' | 'thumbnail' }
+  ): Promise<UploadResult | null> {
+    try {
+      const result = await openlistClient.upload(fileBuffer, remotePath)
+      logger.info(`✓ OpenList上传成功 [${context.type} ${context.entityId}]: ${remotePath}`)
+      return result
+    } catch (error) {
+      const openListError = this.toOpenListError(error)
+      logger.error(`OpenList上传失败 [${context.type} ${context.entityId}]`, {
+        path: remotePath,
+        status: openListError.status,
+        code: openListError.code,
+        message: openListError.message
+      })
+      return null
+    }
+  }
+
+  private toOpenListError(error: unknown): OpenListError {
+    if (error && typeof error === 'object' && 'message' in error) {
+      return error as OpenListError
+    }
+
+    const fallback = new Error(String(error ?? 'Unknown OpenList error')) as OpenListError
+    fallback.code = (error as OpenListError)?.code
+    fallback.status = (error as OpenListError)?.status
+    fallback.details = (error as OpenListError)?.details
+    return fallback
   }
 
   /**
@@ -140,34 +178,24 @@ export class ImageDownloadService {
    * @param accountId 账号ID
    * @returns 本地路径或null
    */
-  async downloadAvatar(url: string, accountId: number): Promise<string | null> {
+  async downloadAvatar(url: string, accountKey: number | string): Promise<UploadResult | null> {
     if (!url) {
-      logger.warn(`账号 ${accountId} 没有头像URL`)
+      logger.warn(`账号 ${accountKey} 没有头像URL`)
       return null
     }
 
-    const fileName = this.generateFileName(url, accountId, 'avatar')
-    const localPath = path.join(this.avatarDir, fileName)
-
-    // 如果文件已存在，直接返回
-    if (fs.existsSync(localPath)) {
-      logger.info(`✓ 头像已存在 [账号 ${accountId}]: ${fileName}`)
-      return `/static/images/avatars/${fileName}`
-    }
+    const fileName = this.generateFileName(url, accountKey, 'avatar')
+    const remotePath = this.buildRemotePath(this.avatarRemotePrefix, fileName)
 
     const imageData = await this.downloadImageData(url)
     if (!imageData) {
       return null
     }
 
-    try {
-      fs.writeFileSync(localPath, imageData)
-      logger.info(`✓ 头像已保存 [账号 ${accountId}]: ${fileName}`)
-      return `/static/images/avatars/${fileName}`
-    } catch (error) {
-      logger.error(`保存头像失败 [账号 ${accountId}]`, { error: (error as Error).message })
-      return null
-    }
+    return this.uploadToOpenList(imageData, remotePath, {
+      entityId: accountKey,
+      type: 'avatar'
+    })
   }
 
   /**
@@ -176,95 +204,26 @@ export class ImageDownloadService {
    * @param videoId 视频ID
    * @returns 本地路径或null
    */
-  async downloadThumbnail(url: string, videoId: number): Promise<string | null> {
+  async downloadThumbnail(url: string, videoKey: number | string): Promise<UploadResult | null> {
     if (!url) {
-      logger.warn(`视频 ${videoId} 没有缩略图URL`)
+      logger.warn(`视频 ${videoKey} 没有缩略图URL`)
       return null
     }
 
-    const fileName = this.generateFileName(url, videoId, 'thumbnail')
-    const localPath = path.join(this.thumbnailDir, fileName)
-
-    // 如果文件已存在，直接返回
-    if (fs.existsSync(localPath)) {
-      logger.info(`✓ 缩略图已存在 [视频 ${videoId}]: ${fileName}`)
-      return `/static/images/thumbnails/${fileName}`
-    }
+    const fileName = this.generateFileName(url, videoKey, 'thumbnail')
+    const remotePath = this.buildRemotePath(this.thumbnailRemotePrefix, fileName)
 
     const imageData = await this.downloadImageData(url)
     if (!imageData) {
       return null
     }
 
-    try {
-      fs.writeFileSync(localPath, imageData)
-      logger.info(`✓ 缩略图已保存 [视频 ${videoId}]: ${fileName}`)
-      return `/static/images/thumbnails/${fileName}`
-    } catch (error) {
-      logger.error(`保存缩略图失败 [视频 ${videoId}]`, { error: (error as Error).message })
-      return null
-    }
+    return this.uploadToOpenList(imageData, remotePath, {
+      entityId: videoKey,
+      type: 'thumbnail'
+    })
   }
 
-  /**
-   * 删除本地文件
-   */
-  deleteFile(localPath: string): boolean {
-    try {
-      const fullPath = path.join(this.baseImageDir, localPath.replace(/^\/static\/images\//, ''))
-      if (fs.existsSync(fullPath)) {
-        fs.unlinkSync(fullPath)
-        logger.info(`✓ 文件已删除: ${localPath}`)
-        return true
-      }
-      return false
-    } catch (error) {
-      logger.error(`删除文件失败: ${localPath}`, { error: (error as Error).message })
-      return false
-    }
-  }
-
-  /**
-   * 获取本地图片目录统计信息
-   */
-  getStorageStats(): {
-    totalAvatars: number
-    totalThumbnails: number
-    avatarDirSize: number
-    thumbnailDirSize: number
-  } {
-    const getSize = (dir: string): number => {
-      if (!fs.existsSync(dir)) return 0
-
-      return fs
-        .readdirSync(dir)
-        .reduce((total, file) => {
-          const filePath = path.join(dir, file)
-          const stat = fs.statSync(filePath)
-          return total + stat.size
-        }, 0)
-    }
-
-    const formatBytes = (bytes: number): string => {
-      if (bytes === 0) return '0 Bytes'
-      const k = 1024
-      const sizes = ['Bytes', 'KB', 'MB', 'GB']
-      const i = Math.floor(Math.log(bytes) / Math.log(k))
-      return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
-    }
-
-    const avatarDirSize = getSize(this.avatarDir)
-    const thumbnailDirSize = getSize(this.thumbnailDir)
-
-    return {
-      totalAvatars: fs.existsSync(this.avatarDir) ? fs.readdirSync(this.avatarDir).length : 0,
-      totalThumbnails: fs.existsSync(this.thumbnailDir)
-        ? fs.readdirSync(this.thumbnailDir).length
-        : 0,
-      avatarDirSize,
-      thumbnailDirSize
-    }
-  }
 }
 
 // 导出单例

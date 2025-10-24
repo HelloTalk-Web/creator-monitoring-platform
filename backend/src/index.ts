@@ -30,6 +30,7 @@ import dashboardRoutes from './routes/dashboard'
 // import analyticsRoutes from './routes/analytics'  // 暂时注释掉，文件不存在
 import videoMetricsHistoryRoutes from './modules/video-metrics-history/routes'
 import imageProxyRoutes from './routes/image-proxy'
+import imagesRoutes from './routes/images'
 
 // 创建Express应用
 const app = express()
@@ -73,7 +74,8 @@ app.use('/api/v1/video-metrics-history', videoMetricsHistoryRoutes)
 app.use('/api/scrape', scrapeRoutes)  // 支持前端调用的 /api/scrape/complete
 app.use('/api/platforms', platformRoutes)  // 支持前端调用的 /api/platforms/accounts
 app.use('/api/dashboard', dashboardRoutes)  // 仪表板统计数据
-app.use('/api/image-proxy', imageProxyRoutes)  // 图片代理服务
+app.use('/api/image-proxy', imageProxyRoutes)  // 传统图片代理服务
+app.use('/api/images', imagesRoutes)  // 统一图片访问接口
 
 // 健康检查端点
 app.get('/health', (req, res) => {
